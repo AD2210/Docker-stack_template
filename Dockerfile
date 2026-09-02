@@ -26,6 +26,7 @@ RUN <<-EOF
 		@composer \
 		apcu \
 		intl \
+		pdo_pgsql \
 		opcache \
 		zip
 	rm -rf /var/lib/apt/lists/*
@@ -45,7 +46,7 @@ COPY --link frankenphp/Caddyfile /etc/frankenphp/Caddyfile
 
 ENTRYPOINT ["docker-entrypoint"]
 
-HEALTHCHECK --start-period=60s CMD php -r 'exit(false === @file_get_contents("http://localhost:2019/metrics", context: stream_context_create(["http" => ["timeout" => 5]])) ? 1 : 0);'
+HEALTHCHECK --start-period=60s CMD php -r 'exit(false === @file_get_contents("http://localhost:80/health", context: stream_context_create(["http" => ["timeout" => 5]])) ? 1 : 0);'
 CMD [ "frankenphp", "run", "--config", "/etc/frankenphp/Caddyfile" ]
 
 # Dev FrankenPHP image
@@ -56,12 +57,23 @@ ENV XDEBUG_MODE=off
 ENV FRANKENPHP_WORKER_CONFIG=watch
 
 # dev dependencies
+ARG USER_ID=1000
+ARG GROUP_ID=1000
+
 RUN <<-EOF
-	mv "$PHP_INI_DIR/php.ini-development" "$PHP_INI_DIR/php.ini"
-	install-php-extensions xdebug
-	useradd -m -s /bin/bash nonroot
-	git config --system --add safe.directory /app
+    mv "$PHP_INI_DIR/php.ini-development" "$PHP_INI_DIR/php.ini"
+    install-php-extensions xdebug
+    groupadd --gid "${GROUP_ID}" app
+    useradd \
+        --uid "${USER_ID}" \
+        --gid "${GROUP_ID}" \
+        --create-home \
+        --shell /bin/bash \
+        app
+    git config --system --add safe.directory /app
 EOF
+
+USER app
 
 COPY --link frankenphp/conf.d/20-app.dev.ini $PHP_INI_DIR/app.conf.d/
 
@@ -160,5 +172,5 @@ WORKDIR /app
 
 ENTRYPOINT ["docker-entrypoint"]
 
-HEALTHCHECK --start-period=60s CMD php -r 'exit(false === @file_get_contents("http://localhost:2019/metrics", context: stream_context_create(["http" => ["timeout" => 5]])) ? 1 : 0);'
+HEALTHCHECK --start-period=60s CMD php -r 'exit(false === @file_get_contents("http://localhost:80/health", context: stream_context_create(["http" => ["timeout" => 5]])) ? 1 : 0);'
 CMD [ "frankenphp", "run", "--config", "/etc/frankenphp/Caddyfile" ]
