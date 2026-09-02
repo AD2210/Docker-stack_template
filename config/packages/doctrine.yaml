@@ -1,10 +1,12 @@
 doctrine:
     dbal:
-        url: '%env(resolve:DATABASE_URL)%'
-
-        # IMPORTANT: You MUST configure your server version,
-        # either here or in the DATABASE_URL env var (see .env file)
-        #server_version: '16'
+        driver: pdo_pgsql
+        host: '%env(DATABASE_HOST)%'
+        port: '%env(DATABASE_PORT)%'
+        user: '%env(DATABASE_USER)%'
+        password: '%env(trim:file:DATABASE_PASSWORD_FILE)%'
+        dbname: '%env(DATABASE_NAME)%'
+        server_version: '%env(DATABASE_VERSION)%'
 
         profiling_collect_backtrace: '%kernel.debug%'
     orm:

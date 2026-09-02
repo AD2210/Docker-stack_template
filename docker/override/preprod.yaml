@@ -2,11 +2,27 @@
 # Production environment override
 services:
     php:
-        image: ${IMAGES_PREFIX:-}app-php-prod
+        env_file:
+            -   docker/env/preprod.env
+        image: ${IMAGES_PREFIX:-}app-php-preprod
         build:
             context: .
             target: frankenphp_prod
+            args:
+                APP_ENV: preprod
+        ports:
+            - published: ${PHP_HTTP_PORT:-8000}
         environment:
-            APP_SECRET: ${APP_SECRET}
             #MERCURE_PUBLISHER_JWT_KEY: ${CADDY_MERCURE_JWT_SECRET}
             #MERCURE_SUBSCRIBER_JWT_KEY: ${CADDY_MERCURE_JWT_SECRET}
+        secrets:
+            - source: symfony_decryption_key
+              target: /app/config/secrets/preprod/preprod.decrypt.private.php
+
+    database:
+        environment:
+            POSTGRES_DB: app-preprod
+            POSTGRES_USER: preprod
+secrets:
+    symfony_decryption_key:
+        file: ./secrets/preprod.decrypt.private.php

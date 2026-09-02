@@ -27,6 +27,7 @@ RUN <<-EOF
 		apcu \
 		intl \
 		pdo_pgsql \
+		sodium \
 		opcache \
 		zip
 	rm -rf /var/lib/apt/lists/*
@@ -85,7 +86,9 @@ CMD [ "frankenphp", "run", "--config", "/etc/frankenphp/Caddyfile", "--watch" ]
 # Builder for the prod FrankenPHP image
 FROM frankenphp_base AS frankenphp_prod_builder
 
-ENV APP_ENV=prod
+# Permet de géré une stack staging, preprod ou beta
+ARG APP_ENV=prod
+ENV APP_ENV=${APP_ENV}
 
 RUN mv "$PHP_INI_DIR/php.ini-production" "$PHP_INI_DIR/php.ini"
 
@@ -101,7 +104,7 @@ COPY --link --exclude=frankenphp/ . ./
 RUN <<-EOF
 	mkdir -p var/cache var/log var/share
 	composer dump-autoload --classmap-authoritative --no-dev
-	composer dump-env prod
+	composer dump-env "${APP_ENV}"
 	composer run-script --no-dev post-install-cmd
 	if [ -f importmap.php ]; then
 		php bin/console asset-map:compile
