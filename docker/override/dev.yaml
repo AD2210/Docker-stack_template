@@ -31,7 +31,31 @@ services:
         extra_hosts:
             - host.docker.internal:host-gateway
         tty: true
+
     database:
         environment:
             POSTGRES_DB: app-dev
             POSTGRES_USER: dev
+
+    messenger:
+        image: ${IMAGES_PREFIX:-}app-php-dev
+        env_file:
+            - docker/env/dev.env
+        environment:
+            POSTGRES_DB: app-dev
+            POSTGRES_USER: dev
+        volumes:
+            - ./:/app
+
+    scheduler:
+        image: ${IMAGES_PREFIX:-}app-php-dev
+        env_file:
+            - docker/env/dev.env
+        environment:
+            POSTGRES_DB: app-dev
+            POSTGRES_USER: dev
+        volumes:
+            - ./:/app
+
+include:
+    - docker/services/mailer.yaml
