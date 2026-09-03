@@ -4,30 +4,22 @@ on:
   workflow_call:
     inputs:
       tag:
-        description: "Release tag, e.g. v1.2.3"
+        description: "SEMVER release tag (example: v1.2.3)"
         required: true
         type: string
-    outputs:
-      image:
-        description: "Published PHP image"
-        value: ${{ jobs.php.outputs.image }}
-      digest:
-        description: "Published PHP image digest"
-        value: ${{ jobs.php.outputs.digest }}
+      environment:
+        description: "Build environment: preprod or prod"
+        required: true
+        type: string
 
 permissions:
   contents: read
   packages: write
 
 jobs:
-  php:
-    name: Build PHP image
+  build:
+    name: Build ${{ inputs.environment }}
     runs-on: ubuntu-latest
-    outputs:
-      image: ${{ steps.meta.outputs.image }}
-      digest: ${{ steps.build.outputs.digest }}
-    env:
-      IMAGE: ghcr.io/${{ github.repository }}-php
 
     steps:
       - name: Checkout
@@ -45,35 +37,41 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Resolve image metadata
-        id: meta
+      # The project Makefile remains authoritative for:
+      # - APP_ENV build argument
+      # - IMAGES_PREFIX
+      # - Compose files / overrides
+      # - image names
+      #
+      # IMAGE_TAG is the Git SEMVER tag and is the only release identifier
+      # supplied by GitHub Actions.
+      - name: Build and push images
         shell: bash
         env:
-          TAG: ${{ inputs.tag }}
-          IMAGE: ${{ env.IMAGE }}
+          BUILD_ENV: ${{ inputs.environment }}
+          IMAGE_TAG: ${{ inputs.tag }}
         run: |
           set -euo pipefail
-          echo "image=${IMAGE}:${TAG}" >> "${GITHUB_OUTPUT}"
 
-      - name: Build and push PHP image
-        id: build
-        uses: docker/build-push-action@v7
-        with:
-          context: .
-          file: ./Dockerfile
-          target: frankenphp_prod
-          push: true
-          pull: true
-          tags: |
-            ${{ env.IMAGE }}:${{ inputs.tag }}
-          cache-from: type=gha,scope=php-release
-          cache-to: type=gha,scope=php-release,mode=max
-          provenance: true
-          sbom: true
+          case "${BUILD_ENV}" in
+            preprod)
+              make preprod-build IMAGE_TAG="${IMAGE_TAG}"
+              make preprod-push IMAGE_TAG="${IMAGE_TAG}"
+              ;;
+            prod)
+              make prod-build IMAGE_TAG="${IMAGE_TAG}"
+              make prod-push IMAGE_TAG="${IMAGE_TAG}"
+              ;;
+            *)
+              echo "::error::Unknown build environment: ${BUILD_ENV}"
+              exit 1
+              ;;
+          esac
 
-      # -----------------------------------------------------------------------
-      # Optional additional buildable services
-      # -----------------------------------------------------------------------
-      # Add one job per independently versioned image, or move to a matrix.
-      # Messenger/Scheduler should normally reuse the PHP image with a different
-      # Compose command rather than producing separate images.
+      # ---------------------------------------------------------------------
+      # Optional additional image services
+      # ---------------------------------------------------------------------
+      # Keep the service selection in Compose/Make rather than duplicating it
+      # here. Messenger and Scheduler should normally reuse the PHP image with
+      # different Compose commands. A Vue/front image can be added to the Make
+      # build/push targets when required.

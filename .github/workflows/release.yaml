@@ -51,7 +51,7 @@ jobs:
           fi
 
           if [[ ! "${TAG}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+([+-][0-9A-Za-z.-]+)?$ ]]; then
-            echo "::error::Invalid release tag: ${TAG}"
+            echo "::error::Invalid SEMVER release tag: ${TAG}"
             exit 1
           fi
 
@@ -69,8 +69,8 @@ jobs:
     needs: validate-release
     uses: ./.github/workflows/_quality.yaml
 
-  build:
-    name: Build
+  build-preprod:
+    name: Build preprod
     needs:
       - validate-release
       - quality
@@ -80,12 +80,26 @@ jobs:
     uses: ./.github/workflows/_build.yaml
     with:
       tag: ${{ needs.validate-release.outputs.tag }}
+      environment: preprod
+
+  build-production:
+    name: Build production
+    needs:
+      - validate-release
+      - quality
+    permissions:
+      contents: read
+      packages: write
+    uses: ./.github/workflows/_build.yaml
+    with:
+      tag: ${{ needs.validate-release.outputs.tag }}
+      environment: prod
 
   deploy-preprod:
     name: Deploy preprod
     needs:
       - validate-release
-      - build
+      - build-preprod
     permissions:
       contents: read
       packages: read
@@ -100,6 +114,7 @@ jobs:
     name: Deploy production
     needs:
       - validate-release
+      - build-production
       - deploy-preprod
     permissions:
       contents: read

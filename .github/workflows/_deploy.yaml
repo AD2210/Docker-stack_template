@@ -4,15 +4,15 @@ on:
   workflow_call:
     inputs:
       tag:
-        description: "Release tag to deploy"
+        description: "SEMVER release tag to deploy"
         required: true
         type: string
       environment:
-        description: "GitHub Environment name"
+        description: "GitHub Environment name: preprod or production"
         required: true
         type: string
       compose_environment:
-        description: "Compose override name: preprod or prod"
+        description: "Compose environment: preprod or prod"
         required: true
         type: string
 
@@ -24,19 +24,23 @@ jobs:
   deploy:
     name: Deploy ${{ inputs.environment }}
     runs-on: ubuntu-latest
+
+    # Configure a required reviewer on the `production` GitHub Environment.
+    # The job, and therefore its production secrets, remain blocked until approval.
     environment:
       name: ${{ inputs.environment }}
+
     concurrency:
       group: deploy-${{ inputs.environment }}
       cancel-in-progress: false
 
     env:
-      DEPLOY_PATH: ${{ vars.DEPLOY_PATH }}
+      APP_NAME: ${{ vars.APP_NAME }}
+      APP_PATH: ${{ vars.APP_PATH }}
       COMPOSE_PROJECT_NAME: ${{ vars.COMPOSE_PROJECT_NAME }}
       APP_URL: ${{ vars.APP_URL }}
-      IMAGE_PREFIX: ${{ vars.IMAGE_PREFIX }}
-      BACKUP_SCRIPT: ${{ vars.BACKUP_SCRIPT }}
-      RELEASE_SCRIPT: ${{ vars.RELEASE_SCRIPT }}
+      RELEASE_SERVICE: ${{ vars.RELEASE_SERVICE }}
+      RELEASE_IMAGE: ${{ vars.RELEASE_IMAGE }}
 
     steps:
       - name: Checkout
@@ -51,12 +55,15 @@ jobs:
           SSH_USER: ${{ secrets.SSH_USER }}
         run: |
           set -euo pipefail
+
           : "${SSH_HOST:?Missing environment secret SSH_HOST}"
           : "${SSH_USER:?Missing environment secret SSH_USER}"
-          : "${DEPLOY_PATH:?Missing environment variable DEPLOY_PATH}"
+          : "${APP_NAME:?Missing environment variable APP_NAME}"
+          : "${APP_PATH:?Missing environment variable APP_PATH}"
           : "${COMPOSE_PROJECT_NAME:?Missing environment variable COMPOSE_PROJECT_NAME}"
           : "${APP_URL:?Missing environment variable APP_URL}"
-          : "${IMAGE_PREFIX:?Missing environment variable IMAGE_PREFIX}"
+          : "${RELEASE_SERVICE:?Missing environment variable RELEASE_SERVICE}"
+          : "${RELEASE_IMAGE:?Missing environment variable RELEASE_IMAGE}"
 
       - name: Configure SSH
         shell: bash
@@ -79,24 +86,21 @@ jobs:
           COMPOSE_ENVIRONMENT: ${{ inputs.compose_environment }}
         run: |
           set -euo pipefail
+
           BUNDLE="${RUNNER_TEMP}/deploy"
           mkdir -p \
             "${BUNDLE}/docker/services" \
             "${BUNDLE}/docker/override" \
             "${BUNDLE}/docker/env" \
-            "${BUNDLE}/secrets" \
-            "${BUNDLE}/.github/scripts"
+            "${BUNDLE}/secrets"
 
           cp compose.yaml "${BUNDLE}/"
           cp .env "${BUNDLE}/"
           cp -R docker/services/. "${BUNDLE}/docker/services/"
           cp "docker/override/${COMPOSE_ENVIRONMENT}.yaml" "${BUNDLE}/docker/override/"
           cp "docker/env/${COMPOSE_ENVIRONMENT}.env" "${BUNDLE}/docker/env/"
-          cp .github/scripts/remote-deploy.sh "${BUNDLE}/.github/scripts/"
-          chmod 700 "${BUNDLE}/.github/scripts/remote-deploy.sh"
 
-          # Adapt these filenames if your Compose secrets.file paths use
-          # another naming convention.
+          # Deployment secrets are recreated on the server on every CD run.
           printf '%s' "${POSTGRES_PASSWORD}" > "${BUNDLE}/secrets/postgres_password"
           printf '%s' "${SYMFONY_DECRYPT_PRIVATE_KEY}" \
             > "${BUNDLE}/secrets/${COMPOSE_ENVIRONMENT}.decrypt.private.php"
@@ -114,7 +118,7 @@ jobs:
           scp "${RUNNER_TEMP}/deploy.tar.gz" \
             "${SSH_USER}@${SSH_HOST}:/tmp/${COMPOSE_PROJECT_NAME}-${{ inputs.tag }}.tar.gz"
 
-      - name: Deploy on server
+      - name: Prepare and deploy on server
         shell: bash
         env:
           SSH_HOST: ${{ secrets.SSH_HOST }}
@@ -127,19 +131,23 @@ jobs:
           set -euo pipefail
 
           printf -v REMOTE_CMD \
-            'DEPLOY_PATH=%q COMPOSE_PROJECT_NAME=%q COMPOSE_ENVIRONMENT=%q RELEASE_TAG=%q IMAGE_PREFIX=%q BACKUP_SCRIPT=%q GHCR_USERNAME=%q GHCR_TOKEN=%q bash -s' \
-            "${DEPLOY_PATH}" \
+            'APP_NAME=%q APP_PATH=%q COMPOSE_PROJECT_NAME=%q COMPOSE_ENVIRONMENT=%q RELEASE_SERVICE=%q RELEASE_IMAGE=%q RELEASE_TAG=%q GHCR_USERNAME=%q GHCR_TOKEN=%q bash -s' \
+            "${APP_NAME}" \
+            "${APP_PATH}" \
             "${COMPOSE_PROJECT_NAME}" \
             "${COMPOSE_ENVIRONMENT}" \
+            "${RELEASE_SERVICE}" \
+            "${RELEASE_IMAGE}" \
             "${RELEASE_TAG}" \
-            "${IMAGE_PREFIX}" \
-            "${BACKUP_SCRIPT}" \
             "${GHCR_USERNAME}" \
             "${GHCR_TOKEN}"
 
           ssh "${SSH_USER}@${SSH_HOST}" "${REMOTE_CMD}" \
             < .github/scripts/remote-deploy.sh
 
+      # Docker `--wait` validates the internal container healthchecks.
+      # This second check validates the complete public path:
+      # host Caddy -> Docker published port -> FrankenPHP -> application.
       - name: External HTTP healthcheck
         shell: bash
         run: |
@@ -153,20 +161,34 @@ jobs:
             --retry-all-errors \
             "${APP_URL%/}/health"
 
-      - name: Register successful release
-        if: ${{ vars.RELEASE_SCRIPT != '' }}
+      # Only a healthy release becomes CURRENT. server-release automatically
+      # moves the former CURRENT value to PREVIOUS.
+      - name: Record successful release
         shell: bash
         env:
           SSH_HOST: ${{ secrets.SSH_HOST }}
           SSH_USER: ${{ secrets.SSH_USER }}
           RELEASE_TAG: ${{ inputs.tag }}
-          DEPLOY_ENVIRONMENT: ${{ inputs.environment }}
         run: |
           set -euo pipefail
-          printf -v REMOTE_CMD '%q %q %q' \
-            "${RELEASE_SCRIPT}" \
+
+          printf -v REMOTE_CMD \
+            'server-release record %q %q %q %q' \
+            "${APP_NAME}" \
+            "${RELEASE_SERVICE}" \
             "${RELEASE_TAG}" \
-            "${DEPLOY_ENVIRONMENT}"
+            "${RELEASE_IMAGE}"
+
+          ssh "${SSH_USER}@${SSH_HOST}" "${REMOTE_CMD}"
+
+      - name: Show release state
+        shell: bash
+        env:
+          SSH_HOST: ${{ secrets.SSH_HOST }}
+          SSH_USER: ${{ secrets.SSH_USER }}
+        run: |
+          set -euo pipefail
+          printf -v REMOTE_CMD 'server-release show %q' "${APP_NAME}"
           ssh "${SSH_USER}@${SSH_HOST}" "${REMOTE_CMD}"
 
       - name: Remove local secret bundle
