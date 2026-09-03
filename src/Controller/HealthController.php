@@ -10,8 +10,7 @@ final class HealthController extends AbstractController
 {
     #[Route('/health', name: 'app_health')]
     /**
-     * Healthcheck endpoint
-     * Todo à completer avec un test d'accès base de données
+     * Healthcheck endpoints.
      */
     public function healthcheck(): JsonResponse
     {

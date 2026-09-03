@@ -6,6 +6,7 @@ $finder = (new PhpCsFixer\Finder())
     ->notPath([
         'config/bundles.php',
         'config/reference.php',
+        'config/secrets'
     ])
 ;
 
