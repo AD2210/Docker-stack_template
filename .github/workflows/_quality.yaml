@@ -23,6 +23,7 @@ jobs:
         run: |
           docker run --rm \
             --volume "${PWD}:/srv:ro" \
+            --mount type=tmpfs,destination=/srv/var \
             --workdir /srv \
             caddy:2 \
             caddy validate --config /srv/Caddyfile --adapter caddyfile
