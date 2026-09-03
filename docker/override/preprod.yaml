@@ -27,6 +27,21 @@ services:
         environment:
             POSTGRES_DB: app-preprod
             POSTGRES_USER: preprod
+
+    messenger:
+        env_file:
+            - docker/env/preprod.env
+        environment:
+            POSTGRES_DB: app-preprod
+            POSTGRES_USER: preprod
+
+    scheduler:
+        env_file:
+            - docker/env/preprod.env
+        environment:
+            POSTGRES_DB: app-preprod
+            POSTGRES_USER: preprod
+
 secrets:
     symfony_decryption_key:
         file: config/secrets/preprod/preprod.decrypt.private.php

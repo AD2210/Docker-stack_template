@@ -1,0 +1,36 @@
+services:
+    scheduler:
+        image: ${IMAGES_PREFIX:-app}-php:${IMAGE_TAG:-latest}
+
+        restart: unless-stopped
+
+        command:
+            - php
+            - bin/console
+            - messenger:consume
+            - scheduler_default
+            - async
+            - --time-limit=3600
+            - --memory-limit=256M
+            - --no-interaction
+
+        depends_on:
+            database:
+                condition: service_healthy
+
+        healthcheck:
+            test: "php bin/console messenger -V"
+            interval: 30s
+            timeout: 10s
+            retries: 3
+
+        secrets:
+            - postgres_password
+
+        environment:
+            ### Doctrine DBAL
+            DATABASE_HOST: database
+            DATABASE_PORT: 5432
+            DATABASE_VERSION: ${POSTGRES_VERSION:-16}
+            DATABASE_CHARSET: ${POSTGRES_CHARSET:-UTF8}
+            DATABASE_PASSWORD_FILE: /run/secrets/postgres_password

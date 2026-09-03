@@ -24,7 +24,10 @@ COMPOSE_PROD := $(COMPOSE) \
 # DEV
 # ==============================================================================
 
-.PHONY: dev-up dev-down dev-logs
+.PHONY: dev-up dev-down dev-logs dev-config dev-reset dev-exec
+
+dev-config:
+	$(COMPOSE_DEV) config
 
 dev-up:
 	$(COMPOSE_DEV) up -d --wait
@@ -32,21 +35,32 @@ dev-up:
 dev-down:
 	$(COMPOSE_DEV) down
 
+dev-reset:
+	$(COMPOSE_DEV) down --remove-orphans
+
 dev-logs:
 	$(COMPOSE_DEV) logs -f
 
+dev-exec:
+	$(COMPOSE_DEV) exec
 
 # ==============================================================================
 # PREPROD
 # ==============================================================================
 
-.PHONY: preprod-up preprod-down preprod-logs
+.PHONY: preprod-up preprod-down preprod-logs preprod-config preprod-reset
+
+preprod-config:
+	$(COMPOSE_PREPROD) config
 
 preprod-up:
 	$(COMPOSE_PREPROD) up -d --wait
 
 preprod-down:
 	$(COMPOSE_PREPROD) down
+
+preprod-reset:
+	$(COMPOSE_PREPROD) down --remove-orphans
 
 preprod-logs:
 	$(COMPOSE_PREPROD) logs -f
@@ -56,13 +70,19 @@ preprod-logs:
 # PROD
 # ==============================================================================
 
-.PHONY: prod-up prod-down prod-logs
+.PHONY: prod-up prod-down prod-logs prod-config prod-reset
+
+prod-config:
+	$(COMPOSE_PROD) config
 
 prod-up:
 	$(COMPOSE_PROD) up -d --wait
 
 prod-down:
 	$(COMPOSE_PROD) down
+
+prod-reset:
+	$(COMPOSE_PROD) down --remove-orphans
 
 prod-logs:
 	$(COMPOSE_PROD) logs -f

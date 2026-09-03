@@ -25,6 +25,21 @@ services:
         environment:
             POSTGRES_DB: app-prod
             POSTGRES_USER: prod
+
+    messenger:
+        env_file:
+            - docker/env/prod.env
+        environment:
+            POSTGRES_DB: app-prod
+            POSTGRES_USER: prod
+
+    scheduler:
+        env_file:
+            - docker/env/prod.env
+        environment:
+            POSTGRES_DB: app-prod
+            POSTGRES_USER: prod
+
 secrets:
     symfony_decryption_key:
         file: config/secrets/prod/prod.decrypt.private.php
