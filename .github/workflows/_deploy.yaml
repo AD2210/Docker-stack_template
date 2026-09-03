@@ -1,0 +1,175 @@
+name: _Deploy
+
+on:
+  workflow_call:
+    inputs:
+      tag:
+        description: "Release tag to deploy"
+        required: true
+        type: string
+      environment:
+        description: "GitHub Environment name"
+        required: true
+        type: string
+      compose_environment:
+        description: "Compose override name: preprod or prod"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  packages: read
+
+jobs:
+  deploy:
+    name: Deploy ${{ inputs.environment }}
+    runs-on: ubuntu-latest
+    environment:
+      name: ${{ inputs.environment }}
+    concurrency:
+      group: deploy-${{ inputs.environment }}
+      cancel-in-progress: false
+
+    env:
+      DEPLOY_PATH: ${{ vars.DEPLOY_PATH }}
+      COMPOSE_PROJECT_NAME: ${{ vars.COMPOSE_PROJECT_NAME }}
+      APP_URL: ${{ vars.APP_URL }}
+      IMAGE_PREFIX: ${{ vars.IMAGE_PREFIX }}
+      BACKUP_SCRIPT: ${{ vars.BACKUP_SCRIPT }}
+      RELEASE_SCRIPT: ${{ vars.RELEASE_SCRIPT }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Validate deployment configuration
+        shell: bash
+        env:
+          SSH_HOST: ${{ secrets.SSH_HOST }}
+          SSH_USER: ${{ secrets.SSH_USER }}
+        run: |
+          set -euo pipefail
+          : "${SSH_HOST:?Missing environment secret SSH_HOST}"
+          : "${SSH_USER:?Missing environment secret SSH_USER}"
+          : "${DEPLOY_PATH:?Missing environment variable DEPLOY_PATH}"
+          : "${COMPOSE_PROJECT_NAME:?Missing environment variable COMPOSE_PROJECT_NAME}"
+          : "${APP_URL:?Missing environment variable APP_URL}"
+          : "${IMAGE_PREFIX:?Missing environment variable IMAGE_PREFIX}"
+
+      - name: Configure SSH
+        shell: bash
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+          SSH_KNOWN_HOSTS: ${{ secrets.SSH_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          install -d -m 700 "${HOME}/.ssh"
+          printf '%s\n' "${SSH_PRIVATE_KEY}" > "${HOME}/.ssh/id_ed25519"
+          chmod 600 "${HOME}/.ssh/id_ed25519"
+          printf '%s\n' "${SSH_KNOWN_HOSTS}" > "${HOME}/.ssh/known_hosts"
+          chmod 600 "${HOME}/.ssh/known_hosts"
+
+      - name: Prepare deployment bundle
+        shell: bash
+        env:
+          POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
+          SYMFONY_DECRYPT_PRIVATE_KEY: ${{ secrets.SYMFONY_DECRYPT_PRIVATE_KEY }}
+          COMPOSE_ENVIRONMENT: ${{ inputs.compose_environment }}
+        run: |
+          set -euo pipefail
+          BUNDLE="${RUNNER_TEMP}/deploy"
+          mkdir -p \
+            "${BUNDLE}/docker/services" \
+            "${BUNDLE}/docker/override" \
+            "${BUNDLE}/docker/env" \
+            "${BUNDLE}/secrets" \
+            "${BUNDLE}/.github/scripts"
+
+          cp compose.yaml "${BUNDLE}/"
+          cp .env "${BUNDLE}/"
+          cp -R docker/services/. "${BUNDLE}/docker/services/"
+          cp "docker/override/${COMPOSE_ENVIRONMENT}.yaml" "${BUNDLE}/docker/override/"
+          cp "docker/env/${COMPOSE_ENVIRONMENT}.env" "${BUNDLE}/docker/env/"
+          cp .github/scripts/remote-deploy.sh "${BUNDLE}/.github/scripts/"
+          chmod 700 "${BUNDLE}/.github/scripts/remote-deploy.sh"
+
+          # Adapt these filenames if your Compose secrets.file paths use
+          # another naming convention.
+          printf '%s' "${POSTGRES_PASSWORD}" > "${BUNDLE}/secrets/postgres_password"
+          printf '%s' "${SYMFONY_DECRYPT_PRIVATE_KEY}" \
+            > "${BUNDLE}/secrets/${COMPOSE_ENVIRONMENT}.decrypt.private.php"
+          chmod 600 "${BUNDLE}/secrets/"*
+
+          tar -C "${BUNDLE}" -czf "${RUNNER_TEMP}/deploy.tar.gz" .
+
+      - name: Copy deployment bundle
+        shell: bash
+        env:
+          SSH_HOST: ${{ secrets.SSH_HOST }}
+          SSH_USER: ${{ secrets.SSH_USER }}
+        run: |
+          set -euo pipefail
+          scp "${RUNNER_TEMP}/deploy.tar.gz" \
+            "${SSH_USER}@${SSH_HOST}:/tmp/${COMPOSE_PROJECT_NAME}-${{ inputs.tag }}.tar.gz"
+
+      - name: Deploy on server
+        shell: bash
+        env:
+          SSH_HOST: ${{ secrets.SSH_HOST }}
+          SSH_USER: ${{ secrets.SSH_USER }}
+          GHCR_USERNAME: ${{ secrets.GHCR_USERNAME }}
+          GHCR_TOKEN: ${{ secrets.GHCR_TOKEN }}
+          RELEASE_TAG: ${{ inputs.tag }}
+          COMPOSE_ENVIRONMENT: ${{ inputs.compose_environment }}
+        run: |
+          set -euo pipefail
+
+          printf -v REMOTE_CMD \
+            'DEPLOY_PATH=%q COMPOSE_PROJECT_NAME=%q COMPOSE_ENVIRONMENT=%q RELEASE_TAG=%q IMAGE_PREFIX=%q BACKUP_SCRIPT=%q GHCR_USERNAME=%q GHCR_TOKEN=%q bash -s' \
+            "${DEPLOY_PATH}" \
+            "${COMPOSE_PROJECT_NAME}" \
+            "${COMPOSE_ENVIRONMENT}" \
+            "${RELEASE_TAG}" \
+            "${IMAGE_PREFIX}" \
+            "${BACKUP_SCRIPT}" \
+            "${GHCR_USERNAME}" \
+            "${GHCR_TOKEN}"
+
+          ssh "${SSH_USER}@${SSH_HOST}" "${REMOTE_CMD}" \
+            < .github/scripts/remote-deploy.sh
+
+      - name: External HTTP healthcheck
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl \
+            --fail-with-body \
+            --show-error \
+            --silent \
+            --retry 12 \
+            --retry-delay 5 \
+            --retry-all-errors \
+            "${APP_URL%/}/health"
+
+      - name: Register successful release
+        if: ${{ vars.RELEASE_SCRIPT != '' }}
+        shell: bash
+        env:
+          SSH_HOST: ${{ secrets.SSH_HOST }}
+          SSH_USER: ${{ secrets.SSH_USER }}
+          RELEASE_TAG: ${{ inputs.tag }}
+          DEPLOY_ENVIRONMENT: ${{ inputs.environment }}
+        run: |
+          set -euo pipefail
+          printf -v REMOTE_CMD '%q %q %q' \
+            "${RELEASE_SCRIPT}" \
+            "${RELEASE_TAG}" \
+            "${DEPLOY_ENVIRONMENT}"
+          ssh "${SSH_USER}@${SSH_HOST}" "${REMOTE_CMD}"
+
+      - name: Remove local secret bundle
+        if: always()
+        shell: bash
+        run: rm -rf "${RUNNER_TEMP}/deploy" "${RUNNER_TEMP}/deploy.tar.gz"
