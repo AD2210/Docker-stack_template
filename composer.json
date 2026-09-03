@@ -17,7 +17,10 @@
         "symfony/flex": "^2",
         "symfony/framework-bundle": "7.4.*",
         "symfony/runtime": "7.4.*",
-        "symfony/yaml": "7.4.*"
+        "symfony/twig-bundle": "7.4.*",
+        "symfony/yaml": "7.4.*",
+        "twig/extra-bundle": "^2.12|^3.0",
+        "twig/twig": "^2.12|^3.0"
     },
     "config": {
         "allow-plugins": {
@@ -68,6 +71,12 @@
             "allow-contrib": false,
             "require": "7.4.*",
             "docker": true
+        },
+        "runtime": {
+            "prod_envs": [
+                "prod",
+                "preprod"
+            ]
         }
     },
     "require-dev": {

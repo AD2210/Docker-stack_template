@@ -7,17 +7,17 @@ COMPOSE := docker compose
 COMPOSE_DEV := $(COMPOSE) \
 -p myapp-dev \
 -f compose.yaml \
--f docker/overrides/dev.yaml
+-f docker/override/dev.yaml
 
 COMPOSE_PREPROD := $(COMPOSE) \
 -p myapp-preprod \
 -f compose.yaml \
--f docker/overrides/preprod.yaml
+-f docker/override/preprod.yaml
 
 COMPOSE_PROD := $(COMPOSE) \
 -p myapp-prod \
 -f compose.yaml \
--f docker/overrides/prod.yaml
+-f docker/override/prod.yaml
 
 
 # ==============================================================================

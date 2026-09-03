@@ -8,8 +8,12 @@ services:
         build:
             context: .
             target: frankenphp_prod
-        ports:
-            - published: ${PHP_HTTP_PORT:-8001}
+        ports: !override
+            - name: http
+              target: 80
+              host_ip: ${PHP_HOST_IP:-127.0.0.1}
+              published: ${PHP_HTTP_PORT:-8000}
+              protocol: tcp
         environment:
             #MERCURE_PUBLISHER_JWT_KEY: ${CADDY_MERCURE_JWT_SECRET}
             #MERCURE_SUBSCRIBER_JWT_KEY: ${CADDY_MERCURE_JWT_SECRET}
@@ -23,4 +27,4 @@ services:
             POSTGRES_USER: prod
 secrets:
     symfony_decryption_key:
-        file: ./secrets/prod.decrypt.private.php
+        file: config/secrets/prod/prod.decrypt.private.php

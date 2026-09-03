@@ -37,7 +37,16 @@ if [ "$1" = 'frankenphp' ] || [ "$1" = 'php' ] || [ "$1" = 'bin/console' ]; then
 			php bin/console doctrine:migrations:migrate --no-interaction --all-or-nothing
 		fi
 	fi
+	# Execution des scripts post install composer et compilation necessitant le kernel complet
+	if [ "$APP_ENV" = 'prod' ] || [ "$APP_ENV" = 'preprod' ]; then
+        echo 'Preparing Symfony runtime...'
 
+        php bin/console cache:clear --no-interaction
+
+        if [ -f importmap.php ]; then
+            php bin/console asset-map:compile
+        fi
+    fi
 	echo 'PHP app ready!'
 fi
 

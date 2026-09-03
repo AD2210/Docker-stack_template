@@ -5,14 +5,13 @@ services:
         image: postgres:${POSTGRES_VERSION:-16}-alpine
 
         environment:
-            POSTGRES_DB: ${POSTGRES_DB:-app}
-            POSTGRES_USER: ${POSTGRES_USER:-app}
             POSTGRES_PASSWORD_FILE: /run/secrets/postgres_password
         secrets:
             - postgres_password
 
         healthcheck:
-            test: ["CMD", "pg_isready", "-d", "${POSTGRES_DB:-app}", "-U", "${POSTGRES_USER:-app}"]
+            test: 'pg_isready -d "$$POSTGRES_DB" -U "$$POSTGRES_USER"'
+            interval: 5s
             timeout: 5s
             retries: 5
             start_period: 60s
@@ -24,4 +23,4 @@ volumes:
 
 secrets:
     postgres_password:
-        file: ./secrets/postgres_password
+        file: ../../secrets/postgres_password

@@ -9,4 +9,4 @@
 /var/
 /vendor/
 ###< symfony/framework-bundle ###
-
+/secrets/
