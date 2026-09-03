@@ -1,0 +1,37 @@
+---
+# Development environment override
+services:
+    php:
+        env_file:
+            -   docker/env/dev.env
+        image: ${IMAGES_PREFIX:-}app-php-dev
+        build:
+            context: .
+            target: frankenphp_dev
+            args:
+                USER_ID: ${USER_ID:-1000}
+                GROUP_ID: ${GROUP_ID:-1000}
+        ports: !override
+            - name: http
+              target: 80
+              host_ip: ${PHP_HOST_IP:-127.0.0.1}
+              published: ${PHP_HTTP_PORT:-8002}
+              protocol: tcp
+        volumes:
+            - ./:/app
+            - ./frankenphp/Caddyfile:/etc/frankenphp/Caddyfile:ro
+            - ./frankenphp/conf.d/20-app.dev.ini:/usr/local/etc/php/app.conf.d/20-app.dev.ini:ro
+
+        environment:
+            FRANKENPHP_WORKER_CONFIG: watch
+            FRANKENPHP_SITE_CONFIG: hot_reload
+            #MERCURE_EXTRA_DIRECTIVES: demo
+            XDEBUG_MODE: "${XDEBUG_MODE:-develop}"
+            APP_ENV: "${APP_ENV:-dev}"
+        extra_hosts:
+            - host.docker.internal:host-gateway
+        tty: true
+    database:
+        environment:
+            POSTGRES_DB: app-dev
+            POSTGRES_USER: dev

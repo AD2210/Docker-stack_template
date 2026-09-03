@@ -1,0 +1,6 @@
+app-preprod.localhost {
+    import common-security
+    import common-log app
+
+    reverse_proxy 127.0.0.1:8001
+}

@@ -1,0 +1,35 @@
+#file: noinspection ComposeUnknownValues,ComposeUnknownValues
+---
+services:
+    php:
+        restart: unless-stopped
+        environment:
+            SERVER_NAME: ${SERVER_NAME:-localhost}
+            DEFAULT_URI: https://${SERVER_NAME:-localhost}
+            ### Doctrine DBAL
+            DATABASE_HOST: database
+            DATABASE_PORT: 5432
+            DATABASE_VERSION: ${POSTGRES_VERSION:-16}
+            DATABASE_CHARSET: ${POSTGRES_CHARSET:-UTF8}
+            DATABASE_PASSWORD_FILE: /run/secrets/postgres_password
+
+            #MERCURE_PUBLISHER_JWT_KEY: ${CADDY_MERCURE_JWT_SECRET:-!ChangeThisMercureHubJWTSecretKey!}
+            #MERCURE_SUBSCRIBER_JWT_KEY: ${CADDY_MERCURE_JWT_SECRET:-!ChangeThisMercureHubJWTSecretKey!}
+            # Run "composer require symfony/mercure-bundle" to install and configure the Mercure integration
+            #MERCURE_URL: ${CADDY_MERCURE_URL:-http://php/.well-known/mercure}
+            #MERCURE_PUBLIC_URL: ${CADDY_MERCURE_PUBLIC_URL:-https://${SERVER_NAME:-localhost}:${HTTPS_PORT:-443}/.well-known/mercure}
+            #MERCURE_JWT_SECRET: ${CADDY_MERCURE_JWT_SECRET:-!ChangeThisMercureHubJWTSecretKey!}
+        secrets:
+            - postgres_password
+
+        volumes:
+            - caddy_data:/data
+            - caddy_config:/config
+        # retirer si l'app n'a pas de database
+        depends_on:
+            database:
+                condition: service_healthy
+
+volumes:
+    caddy_data:
+    caddy_config:
