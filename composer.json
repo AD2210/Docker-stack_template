@@ -9,18 +9,18 @@
         "php": ">=8.5.9",
         "ext-ctype": "*",
         "ext-iconv": "*",
-        "doctrine/doctrine-bundle": "^3.3",
-        "doctrine/doctrine-migrations-bundle": "^4.0",
-        "doctrine/orm": "^3.6",
+        "doctrine/doctrine-bundle": "^3.3.1",
+        "doctrine/doctrine-migrations-bundle": "^4.0.1",
+        "doctrine/orm": "^3.6.8",
         "symfony/console": "7.4.*",
         "symfony/dotenv": "7.4.*",
-        "symfony/flex": "^2",
+        "symfony/flex": "^2.11",
         "symfony/framework-bundle": "7.4.*",
         "symfony/runtime": "7.4.*",
         "symfony/twig-bundle": "7.4.*",
         "symfony/yaml": "7.4.*",
-        "twig/extra-bundle": "^2.12|^3.0",
-        "twig/twig": "^2.12|^3.0"
+        "twig/extra-bundle": "^2.12|^3.24",
+        "twig/twig": "^2.12|^3.28"
     },
     "config": {
         "allow-plugins": {
@@ -80,7 +80,11 @@
         }
     },
     "require-dev": {
+        "friendsofphp/php-cs-fixer": "^3.95",
+        "phpstan/phpstan-symfony": "^2.0",
+        "phpunit/phpunit": "^13.3",
         "symfony/maker-bundle": "^1.67",
+        "symfony/phpunit-bridge": "^8.1",
         "symfony/stopwatch": "7.4.*",
         "symfony/web-profiler-bundle": "7.4.*"
     }

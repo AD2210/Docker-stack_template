@@ -66,3 +66,49 @@ prod-down:
 
 prod-logs:
 	$(COMPOSE_PROD) logs -f
+
+# ==============================================================================
+# Quality
+# ==============================================================================
+
+.PHONY: \
+	precommit \
+	check-compose \
+	check-caddy-host \
+	check-caddy-frankenphp \
+	lint \
+	test \
+	qa
+
+check-compose:
+	$(COMPOSE_DEV) config --quiet
+	$(COMPOSE_PREPROD) config --quiet
+	$(COMPOSE_PROD) config --quiet
+
+lint:
+	composer validate --strict
+	vendor/bin/php-cs-fixer check --diff
+	vendor/bin/phpstan analyse
+	php bin/console lint:container
+	php bin/console lint:yaml config
+	php bin/console lint:twig templates
+
+test:
+	php bin/phpunit
+
+check-caddy-host:
+	caddy validate \
+		--config ./Caddyfile \
+		--adapter caddyfile
+
+check-caddy-frankenphp:
+	docker run --rm \
+		-v "$(CURDIR)/frankenphp/Caddyfile:/etc/frankenphp/Caddyfile:ro" \
+		dunglas/frankenphp:1-php8.5 \
+		frankenphp validate \
+		--config /etc/frankenphp/Caddyfile \
+		--adapter caddyfile
+
+precommit: check-compose check-caddy-host check-caddy-frankenphp
+
+qa: precommit lint test
