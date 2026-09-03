@@ -21,6 +21,7 @@ jobs:
 
       - name: Validate host Caddy configuration
         run: |
+          mkdir -p var
           docker run --rm \
             --volume "${PWD}:/srv:ro" \
             --mount type=tmpfs,destination=/srv/var \
