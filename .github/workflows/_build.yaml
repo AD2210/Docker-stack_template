@@ -1,0 +1,77 @@
+name: _Build
+
+on:
+  workflow_call:
+    inputs:
+      tag:
+        description: "SEMVER release tag (example: v1.2.3)"
+        required: true
+        type: string
+      environment:
+        description: "Build environment: preprod or prod"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  build:
+    name: Build ${{ inputs.environment }}
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4
+
+      - name: Login to GHCR
+        uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # The project Makefile remains authoritative for:
+      # - APP_ENV build argument
+      # - IMAGES_PREFIX
+      # - Compose files / overrides
+      # - image names
+      #
+      # IMAGE_TAG is the Git SEMVER tag and is the only release identifier
+      # supplied by GitHub Actions.
+      - name: Build and push images
+        shell: bash
+        env:
+          BUILD_ENV: ${{ inputs.environment }}
+          IMAGE_TAG: ${{ inputs.tag }}
+        run: |
+          set -euo pipefail
+
+          case "${BUILD_ENV}" in
+            preprod)
+              make preprod-build IMAGE_TAG="${IMAGE_TAG}"
+              make preprod-push IMAGE_TAG="${IMAGE_TAG}"
+              ;;
+            prod)
+              make prod-build IMAGE_TAG="${IMAGE_TAG}"
+              make prod-push IMAGE_TAG="${IMAGE_TAG}"
+              ;;
+            *)
+              echo "::error::Unknown build environment: ${BUILD_ENV}"
+              exit 1
+              ;;
+          esac
+
+      # ---------------------------------------------------------------------
+      # Optional additional image services
+      # ---------------------------------------------------------------------
+      # Keep the service selection in Compose/Make rather than duplicating it
+      # here. Messenger and Scheduler should normally reuse the PHP image with
+      # different Compose commands. A Vue/front image can be added to the Make
+      # build/push targets when required.
