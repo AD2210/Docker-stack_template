@@ -16,7 +16,7 @@ def verify(repository, tag, sha):
         raise ValueError("Invalid release tag")
     if not re.fullmatch(r"[a-f0-9]{40}", sha):
         raise ValueError("Invalid release SHA")
-    name = f"preprod-{tag}-{sha}"
+    name = f"preprod-v2-{tag}-{sha}"
     # Bounded pagination; API failures and absent/expired evidence fail closed.
     for page in range(1, 11):
         artifacts = api(f"repos/{repository}/actions/artifacts?name={name}&per_page=100&page={page}")["artifacts"]

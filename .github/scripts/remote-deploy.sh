@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# Parse the complete SSH script before running commands; children must not consume it.
+{
 set -euo pipefail
 umask 077
 : "${APP_PATH:?}"
@@ -78,3 +80,4 @@ mv "$MANIFEST" "$APP_PATH/compose.runtime.yaml"
 MANIFEST=''
 server-release record "$APP_PATH" "$RELEASE_SERVICE" "$RELEASE_TAG" "$RELEASE_IMAGE"
 echo "Release $RELEASE_TAG recorded after successful readiness check."
+} </dev/null

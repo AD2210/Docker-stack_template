@@ -11,7 +11,7 @@ spec.loader.exec_module(promotion)
 class PromotionTest(unittest.TestCase):
     def setUp(self):
         self.sha = "a" * 40
-        self.name = f"preprod-V1.2.3-{self.sha}"
+        self.name = f"preprod-v2-V1.2.3-{self.sha}"
         self.artifact = {"name": self.name, "expired": False, "workflow_run": {"id": 42}}
         self.run = {"id": 42, "path": ".github/workflows/release.yaml", "status": "completed", "conclusion": "success", "repository": {"full_name": "owner/repo"}, "event": "push", "head_branch": "V1.2.3", "head_sha": self.sha}
 
@@ -27,6 +27,10 @@ class PromotionTest(unittest.TestCase):
         for artifacts in [[], [self.artifact | {"expired": True}], [self.artifact | {"name": self.name + "wrong"}]]:
             with self.subTest(artifacts=artifacts), self.assertRaises(ValueError):
                 self.check(artifacts=artifacts)
+
+    def test_legacy_proof_is_rejected(self):
+        with self.assertRaises(ValueError):
+            self.check(artifacts=[self.artifact | {"name": f"preprod-V1.2.3-{self.sha}"}])
 
     def test_failed_untrusted_or_wrong_commit_run(self):
         for change in [{"conclusion": "failure"}, {"status": "in_progress"}, {"path": ".github/workflows/other.yaml"}, {"head_sha": "b" * 40}, {"event": "pull_request"}, {"event": "workflow_dispatch", "head_branch": "feature/untrusted"}, {"repository": {"full_name": "other/repo"}}]:

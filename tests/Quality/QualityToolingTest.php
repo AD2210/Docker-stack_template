@@ -54,6 +54,7 @@ SH);
             $this->mock($command, <<<'SH'
 printf '%s %s\n' "$(basename "$0")" "$*" >> "$TEST_LOG"
 if [[ "$(basename "$0")" == docker && ( "$1" == ps || "$1" == volume ) ]]; then printf '%s' "${EXISTING_RESOURCE:-}"; fi
+if [[ "$(basename "$0")" == docker && "$*" == *" run "* ]]; then cat >/dev/null; fi
 if [[ "$(basename "$0")" == docker && "$1" == login ]]; then
     cat >/dev/null
     printf '%s' "$DOCKER_CONFIG" > "$TEST_LOG.registry"
@@ -97,7 +98,7 @@ SH);
             }
         }
         file_put_contents($this->temporary.'/calls', '');
-        $process = $this->runCommand(['bash', $this->root().'/.github/scripts/remote-deploy.sh'], $env);
+        $process = $this->runCommand(['bash', '-s'], $env, (string) file_get_contents($this->root().'/.github/scripts/remote-deploy.sh'));
         self::assertTrue($process->isSuccessful(), $process->getErrorOutput());
         $calls = (string) file_get_contents($this->temporary.'/calls');
         $previous = -1;
@@ -259,12 +260,13 @@ SH);
     /** @param list<string> $command
      * @param array<string, string> $environment
      */
-    private function runCommand(array $command, array $environment = []): Process
+    private function runCommand(array $command, array $environment = [], ?string $input = null): Process
     {
         $process = new Process($command, $this->root(), $environment + [
             'PATH' => $this->temporary.'/bin:'.getenv('PATH'),
             'TEST_LOG' => $this->temporary.'/calls',
         ]);
+        $process->setInput($input);
         $process->setTimeout(10);
         $process->run();
 
