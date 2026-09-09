@@ -11,7 +11,7 @@ TAG="${2:?Tag required}"
 # Base64 also prevents curl-config injection without exposing credentials in argv.
 BASIC_AUTH="$(printf '%s:%s' "$GHCR_USERNAME" "$GHCR_TOKEN" | base64 | tr -d '\n')"
 TOKEN_JSON="$(printf 'header = "Authorization: Basic %s"\n' "$BASIC_AUTH" | curl --config - --fail --silent --show-error --connect-timeout 10 --max-time 30 --get --data-urlencode "scope=repository:${IMAGE#ghcr.io/}:pull" https://ghcr.io/token)"
-TOKEN="$(printf '%s' "$TOKEN_JSON" | python3 -c 'import json,sys; print(json.load(sys.stdin)["token"])')"
+TOKEN="$(printf '%s' "$TOKEN_JSON" | jq -er '.token | select(type == "string" and length > 0)')"
 [[ "$TOKEN" =~ ^[-a-zA-Z0-9._~+/]+=*$ ]] || { echo "GHCR returned an invalid bearer token" >&2; exit 2; }
 STATUS="$(printf 'header = "Authorization: Bearer %s"\n' "$TOKEN" | curl --config - --silent --show-error --head --header "Accept: application/vnd.oci.image.index.v1+json, application/vnd.oci.image.manifest.v1+json, application/vnd.docker.distribution.manifest.list.v2+json, application/vnd.docker.distribution.manifest.v2+json" --output /dev/null --write-out '%{http_code}' --connect-timeout 10 --max-time 30 "https://ghcr.io/v2/${IMAGE#ghcr.io/}/manifests/${TAG}")"
 case "$STATUS" in

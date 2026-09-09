@@ -5,7 +5,7 @@ déploiement preprod. Après succès de la préproduction et du build prod, le w
 conserve pendant 90 jours une preuve liée au tag et au SHA exacts.
 
 Pour promouvoir : **Actions → Promote production → Run workflow**, sélectionner
-la branche **main**, renseigner le tag validé puis lancer. Ce lancement constitue
+directement le **tag validé Vx.y.z**, puis lancer sans champ supplémentaire. Ce lancement constitue
 la validation humaine. Le workflow vérifie que le tag appartient à main et qu'une
 exécution Release réussie a produit sa preuve de préproduction pour le même SHA.
 Il déploie l'image prod déjà construite, sans rebuild. Preprod et prod ont des
@@ -15,8 +15,8 @@ Les anciennes releases sans preuve ne sont pas promouvables par ce parcours.
 Ne pas relancer les builds d'un tag déjà publié : préparer une nouvelle version PATCH.
 
 Le workflow doit être présent sur main avant utilisation. Dans les restrictions
-de l'environnement production, autoriser **la branche main** : la référence de
-l'exécution manuelle est main, même si l'image déployée utilise un tag Vx.y.z.
+de l'environnement production, autoriser les tags `V*.*.*` : la référence de
+l'exécution manuelle est désormais le tag sélectionné.
 La préproduction doit autoriser les tags V*.*.* et main pour une relance manuelle.
 Aucun Required reviewer payant n'est requis ; protéger les modifications des workflows
 et réserver les droits de déclenchement aux personnes autorisées. Cette procédure
@@ -77,7 +77,7 @@ Remplacer `2222` par la valeur de `SSH_PORT`. Pour un port personnalisé, conser
 
 ## Provisionnement serveur
 
-Installer Docker Compose, Make, Python 3, `server-release` et le runtime de backup
+Installer Docker Compose, Make, jq, `server-release` et le runtime de backup
 Server-setup. Le compte SSH doit pouvoir exécuter Docker et la commande suivante
 avec sudo sans mot de passe :
 
@@ -171,18 +171,18 @@ vide. Un secret défini uniquement dans production ne configure pas preprod.
 | --- | --- |
 | `Host key verification failed`, code 255 | `SSH_KNOWN_HOSTS` contient la sortie complète de `cat known_hosts`, pas `256 SHA256:… (ED25519)`, qui est uniquement l’empreinte. L’hôte et le port correspondent exactement à SSH_HOST et SSH_PORT. |
 | Code 2 avant déploiement | APP_URL doit inclure `https://`, pas seulement le domaine. Le workflow contrôle aussi le port entier 1–65535. |
-| Code 1 sans message sur les anciens tags | Vérifier `make` et `python3` dans le PATH du compte SSH ; les nouveaux scripts indiquent lequel manque. |
+| Code 1 avant les opérations de déploiement | Vérifier `make` et `jq` dans le PATH du compte SSH ; les nouveaux scripts indiquent lequel manque. |
 | `Missing or unreadable runtime secret` | Vérifier présence et droits sur APP_PATH/secrets/postgres_password et APP_PATH/config/secrets/ENV/ENV.decrypt.private.php. Ne pas afficher leur contenu dans les logs. |
 
 Sur le serveur, avec le compte utilisé par la CD :
 
 ```bash
 command -v make
-command -v python3
+command -v jq
 ```
 
 Si ces commandes manquent sur Debian/Ubuntu, les installer via le provisionnement
-serveur (`sudo apt-get update` puis `sudo apt-get install make python3`).
+serveur (`sudo apt-get update` puis `sudo apt-get install make jq`).
 
 Après correction d’un paramètre ou prérequis serveur, relancer uniquement le job
 **Deploy preprod / Deploy preprod** échoué (ou les jobs échoués), sans relancer les

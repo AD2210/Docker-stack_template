@@ -6,6 +6,7 @@ namespace App\Tests\Quality;
 
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\Process\Process;
+use Symfony\Component\Yaml\Yaml;
 
 final class QualityToolingTest extends TestCase
 {
@@ -74,7 +75,7 @@ SH);
         copy($this->root().'/Makefile', $this->temporary.'/app/Makefile');
         file_put_contents($this->temporary.'/app/compose.runtime.yaml', '{}');
         mkdir($this->temporary.'/app/deploy');
-        copy($this->root().'/.github/scripts/render-runtime.py', $this->temporary.'/app/deploy/render-runtime.py');
+        copy($this->root().'/.github/scripts/render-runtime.sh', $this->temporary.'/app/deploy/render-runtime.sh');
         $env = [
             'APP_PATH' => $this->temporary.'/app', 'COMPOSE_PROJECT_NAME' => 'prospection-quality-test',
             'COMPOSE_ENVIRONMENT' => 'preprod', 'RELEASE_TAG' => 'V0.1.0', 'RELEASE_SERVICE' => 'php',
@@ -199,19 +200,6 @@ SH);
         }
     }
 
-    public function testProductionRequiresSeparateManualPromotion(): void
-    {
-        $release = \Symfony\Component\Yaml\Yaml::parseFile($this->root().'/.github/workflows/release.yaml');
-        self::assertArrayNotHasKey('deploy-production', $release['jobs']);
-        self::assertSame(['validate-release', 'build-production', 'deploy-preprod'], $release['jobs']['preprod-proof']['needs']);
-        $production = \Symfony\Component\Yaml\Yaml::parseFile($this->root().'/.github/workflows/production.yaml');
-        self::assertSame(['workflow_dispatch'], array_keys($production['on']));
-        self::assertSame("github.ref == 'refs/heads/main'", $production['jobs']['validate-promotion']['if']);
-        self::assertSame('validate-promotion', $production['jobs']['deploy-production']['needs']);
-        self::assertSame('${{ needs.validate-promotion.outputs.sha }}', $production['jobs']['deploy-production']['with']['sha']);
-        self::assertArrayNotHasKey('build-production', $production['jobs']);
-    }
-
     public function testRegistryAcceptsOpaqueCredentialsWithoutCurlConfigInjection(): void
     {
         $this->mock('curl', <<<'SH'
@@ -243,6 +231,50 @@ SH);
         ]);
         self::assertSame(2, $process->getExitCode());
         self::assertStringContainsString('APP_URL must start with https://', $process->getErrorOutput());
+    }
+
+    public function testRuntimeManifestKeepsRollbackInterpolationAndProjectIsolation(): void
+    {
+        $input = $this->temporary.'/resolved.json';
+        $output = $this->temporary.'/runtime.yaml';
+        $services = array_fill_keys(['php', 'messenger', 'scheduler'], ['image' => 'pinned:V1.0.0', 'build' => ['context' => '/app']]);
+        $services['database'] = ['image' => 'postgres:16', 'environment' => ['POSTGRES_DB' => 'dedicated']];
+        file_put_contents($input, json_encode(['name' => 'prospection-preprod', 'services' => $services], JSON_THROW_ON_ERROR));
+        self::assertTrue($this->runCommand(['bash', $this->root().'/.github/scripts/render-runtime.sh', $input, $output])->isSuccessful());
+        $manifest = json_decode((string) file_get_contents($output), true, flags: JSON_THROW_ON_ERROR);
+        self::assertSame('prospection-preprod', $manifest['name']);
+        foreach (['php', 'messenger', 'scheduler'] as $service) {
+            self::assertSame('${PHP_IMAGE:?Missing release image}:${PHP_SHA_CURRENT:?Missing release tag}', $manifest['services'][$service]['image']);
+            self::assertArrayNotHasKey('build', $manifest['services'][$service]);
+        }
+        self::assertSame('postgres:16', $manifest['services']['database']['image']);
+        $release = Yaml::parseFile($this->root().'/.github/workflows/release.yaml');
+        self::assertNotEmpty($release['concurrency']['group']);
+    }
+
+    public function testProductionRequiresSeparateManualPromotion(): void
+    {
+        $release = Yaml::parseFile($this->root().'/.github/workflows/release.yaml');
+        self::assertArrayNotHasKey('deploy-production', $release['jobs']);
+        self::assertSame(['validate-release', 'build-production', 'deploy-preprod'], $release['jobs']['preprod-proof']['needs']);
+        $production = Yaml::parseFile($this->root().'/.github/workflows/production.yaml');
+        self::assertSame(['workflow_dispatch'], array_keys($production['on']));
+        self::assertSame("github.ref_type == 'tag'", $production['jobs']['validate-promotion']['if']);
+        self::assertNull($production['on']['workflow_dispatch']);
+        self::assertSame('${{ github.ref_name }}', $production['jobs']['validate-promotion']['steps'][1]['env']['RELEASE_TAG']);
+        self::assertSame('validate-promotion', $production['jobs']['deploy-production']['needs']);
+        self::assertSame('${{ needs.validate-promotion.outputs.sha }}', $production['jobs']['deploy-production']['with']['sha']);
+        self::assertArrayNotHasKey('build-production', $production['jobs']);
+    }
+
+    public function testRuntimeManifestRejectsMalformedAndIncompleteConfiguration(): void
+    {
+        $input = $this->temporary.'/invalid.json';
+        $output = $this->temporary.'/runtime.yaml';
+        foreach (['{', '{}', '{"name":"app","services":{"php":{}}}'] as $json) {
+            file_put_contents($input, $json);
+            self::assertFalse($this->runCommand(['bash', $this->root().'/.github/scripts/render-runtime.sh', $input, $output])->isSuccessful());
+        }
     }
 
     private function root(): string

@@ -2,11 +2,6 @@ name: Promote production
 
 on:
   workflow_dispatch:
-    inputs:
-      tag:
-        description: "Validated preproduction tag (Vx.y.z)"
-        required: true
-        type: string
 
 permissions:
   contents: read
@@ -18,7 +13,7 @@ concurrency:
 
 jobs:
   validate-promotion:
-    if: github.ref == 'refs/heads/main'
+    if: github.ref_type == 'tag'
     runs-on: ubuntu-latest
     outputs:
       tag: ${{ steps.release.outputs.tag }}
@@ -31,14 +26,14 @@ jobs:
       - name: Resolve immutable release
         id: release
         env:
-          RELEASE_TAG: ${{ inputs.tag }}
+          RELEASE_TAG: ${{ github.ref_name }}
         run: bash .github/scripts/resolve-release.sh "$RELEASE_TAG" >> "$GITHUB_OUTPUT"
       - name: Require successful preproduction and prepared production image
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           RELEASE_TAG: ${{ steps.release.outputs.tag }}
           RELEASE_SHA: ${{ steps.release.outputs.sha }}
-        run: python3 .github/scripts/verify-preprod.py
+        run: bash .github/scripts/verify-preprod.sh
 
   deploy-production:
     needs: validate-promotion
@@ -50,5 +45,5 @@ jobs:
       tag: ${{ needs.validate-promotion.outputs.tag }}
       sha: ${{ needs.validate-promotion.outputs.sha }}
       environment: production
-      compose_environment: prod
+      compose_environment: production
     secrets: inherit

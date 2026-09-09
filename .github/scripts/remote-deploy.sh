@@ -34,7 +34,7 @@ cleanup() {
 trap cleanup EXIT
 # Renderer and Make must be provisioned before any runtime mutation.
 command -v make >/dev/null || { echo "Missing server prerequisite: make (SSH user PATH)" >&2; exit 1; }
-command -v python3 >/dev/null || { echo "Missing server prerequisite: python3 (SSH user PATH)" >&2; exit 1; }
+command -v jq >/dev/null || { echo "Missing server prerequisite: jq (SSH user PATH)" >&2; exit 1; }
 # Server provisioning owns secrets; fail before backup or deployment changes.
 for secret in "$APP_PATH/secrets/postgres_password" "$APP_PATH/config/secrets/${COMPOSE_ENVIRONMENT}/${COMPOSE_ENVIRONMENT}.decrypt.private.php"; do
     [[ -s "$secret" && -r "$secret" ]] || { echo "Missing or unreadable runtime secret: $secret" >&2; exit 1; }
@@ -64,7 +64,7 @@ printf '%s' "$GHCR_TOKEN" | docker login ghcr.io --username "$GHCR_USERNAME" --p
 cd "$APP_PATH"
 export CANDIDATE MANIFEST
 make --no-print-directory -s deploy-source-config > "$RESOLVED"
-python3 "$APP_PATH/deploy/render-runtime.py" "$RESOLVED" "$MANIFEST"
+bash "$APP_PATH/deploy/render-runtime.sh" "$RESOLVED" "$MANIFEST"
 compose() { COMPOSE_ARGUMENTS="$(printf '%q ' "$@")" make --no-print-directory -s deploy-compose; }
 compose config --quiet
 compose pull
