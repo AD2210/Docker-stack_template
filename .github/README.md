@@ -29,7 +29,7 @@ Créer les environnements `preprod` et `production`. Chaque environnement contie
 | Type | Nom | Valeur |
 | --- | --- | --- |
 | Variable | `APP_PATH` | Chemin serveur absolu stable, par exemple `/srv/apps/myapp-preprod` |
-| Variable | `APP_URL` | URL HTTPS publique ; le déploiement vérifie `/health` |
+| Variable | `APP_URL` | URL complète avec `https://`, par exemple `https://app-preprod.example.fr` ; le déploiement vérifie `/health` |
 | Secret | `SSH_HOST` | Nom DNS ou IP exacte du serveur |
 | Secret | `SSH_PORT` | Port SSH obligatoire, entier de 1 à 65535 (22 si standard) |
 | Secret | `SSH_USER` | Utilisateur de déploiement |
@@ -56,6 +56,12 @@ Depuis votre machine, remplacer le nom ci-dessous par **exactement** `SSH_HOST` 
 ```bash
 ssh-keyscan -T 10 -p 2222 -t ed25519 serveur.example.fr > known_hosts
 ssh-keygen -lf known_hosts
+```
+
+Après comparaison des empreintes, afficher la valeur à copier :
+
+```bash
+cat known_hosts
 ```
 
 Comparer les empreintes avec celle relevée par le canal fiable. `ssh-keyscan` seul
@@ -152,3 +158,34 @@ ou volume Docker du projet, la CD initialise la stack sans appeler le backup glo
 Si une trace d'installation existe sans manifeste, elle s'arrête pour diagnostic.
 Pour une stack existante, le backup global reste obligatoire et toute erreur bloque
 le déploiement, y compris une erreur provenant d'une autre cible du serveur.
+
+## Dépannage de la première recette
+
+Les noms sont sensibles aux fautes de frappe. Dans Settings → Environments →
+**preprod**, créer les cinq entrées SSH dans **Environment secrets**, pas dans
+Environment variables. Répéter la configuration pour **production**.
+`SSH_KNOWN_HOSTS` se termine par un S ; un secret absent est transmis comme chaîne
+vide. Un secret défini uniquement dans production ne configure pas preprod.
+
+| Symptôme | Vérification |
+| --- | --- |
+| `Host key verification failed`, code 255 | `SSH_KNOWN_HOSTS` contient la sortie complète de `cat known_hosts`, pas `256 SHA256:… (ED25519)`, qui est uniquement l’empreinte. L’hôte et le port correspondent exactement à SSH_HOST et SSH_PORT. |
+| Code 2 avant déploiement | APP_URL doit inclure `https://`, pas seulement le domaine. Le workflow contrôle aussi le port entier 1–65535. |
+| Code 1 sans message sur les anciens tags | Vérifier `make` et `python3` dans le PATH du compte SSH ; les nouveaux scripts indiquent lequel manque. |
+| `Missing or unreadable runtime secret` | Vérifier présence et droits sur APP_PATH/secrets/postgres_password et APP_PATH/config/secrets/ENV/ENV.decrypt.private.php. Ne pas afficher leur contenu dans les logs. |
+
+Sur le serveur, avec le compte utilisé par la CD :
+
+```bash
+command -v make
+command -v python3
+```
+
+Si ces commandes manquent sur Debian/Ubuntu, les installer via le provisionnement
+serveur (`sudo apt-get update` puis `sudo apt-get install make python3`).
+
+Après correction d’un paramètre ou prérequis serveur, relancer uniquement le job
+**Deploy preprod / Deploy preprod** échoué (ou les jobs échoués), sans relancer les
+builds réussis : les images ont déjà été publiées et leurs tags sont immuables.
+Une modification du code des workflows exige un nouveau tag PATCH ; relancer un
+ancien tag reprend ses anciens scripts et leurs anciens messages d’erreur.
