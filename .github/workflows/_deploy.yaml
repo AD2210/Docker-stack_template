@@ -92,10 +92,15 @@ jobs:
             "${BUNDLE}/docker/services" \
             "${BUNDLE}/docker/override" \
             "${BUNDLE}/docker/env" \
-            "${BUNDLE}/deploy"
+            "${BUNDLE}/deploy" \
+            "${BUNDLE}/caddy/apps"
           umask 077
 
           cp .github/scripts/render-runtime.py "${BUNDLE}/deploy/"
+          cp .github/scripts/update-caddy.sh "${BUNDLE}/deploy/"
+          CADDY_APP=app
+          if [[ "$COMPOSE_ENVIRONMENT" = preprod ]]; then CADDY_APP=preprod; fi
+          cp "caddy/apps/${CADDY_APP}.caddy" "${BUNDLE}/caddy/apps/application.caddy"
           cp Makefile "${BUNDLE}/"
           cp compose.yaml "${BUNDLE}/"
           cp .env "${BUNDLE}/"

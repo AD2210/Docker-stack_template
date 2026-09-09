@@ -83,10 +83,10 @@ Provisionner hors CI, avant le premier déploiement :
 
 ```text
 APP_PATH/secrets/postgres_password
-APP_PATH/secrets/preprod.decrypt.private.php
+APP_PATH/config/secrets/preprod/preprod.decrypt.private.php
 ```
 
-En production, utiliser `prod.decrypt.private.php`. Ne jamais committer les clés
+En production, utiliser `APP_PATH/config/secrets/prod/prod.decrypt.private.php`. Ne jamais committer les clés
 privées. Les fichiers doivent être lisibles par le compte de déploiement et par
 l'utilisateur applicatif UID 33 à travers les montages Docker. Configurer ces droits
 lors du provisionnement ; la CI contrôle les fichiers mais ne modifie ni leur
@@ -126,3 +126,29 @@ make preprod-push IMAGE_TAG=V1.2.3
 make prod-build IMAGE_TAG=V1.2.3
 make prod-push IMAGE_TAG=V1.2.3
 ```
+
+## Configuration Caddy applicative
+
+La CD copie automatiquement Compose, le Makefile, le `.env` versionné, les fichiers
+d’environnement et le fichier Caddy de l’environnement (`preprod.caddy` ou `app.caddy`).
+Les secrets restent hors bundle. La clé privée suit le chemin Symfony standard
+`APP_PATH/config/secrets/<env>/<env>.decrypt.private.php` (secrets au pluriel).
+
+Server-setup installe le Caddyfile global et les snippets partagés `security` et
+`logging`. La CD ne remplace pas ces fichiers serveur : leurs mises à jour relèvent
+du provisionnement. Elle installe uniquement `/etc/caddy/apps/<nom-compose>.caddy`,
+sous verrou global, valide la configuration complète puis recharge Caddy avant
+le contrôle HTTP. En cas d'échec, elle restaure le fichier précédent et tente son
+rechargement. Aucune unité systemd ne change, donc aucun daemon-reload.
+
+Le compte de déploiement doit pouvoir exécuter sans interaction `sudo -n bash
+APP_PATH/deploy/update-caddy.sh ...` (le compte administrateur Server-setup possède
+ce droit). Caddy et flock doivent être installés. Les fichiers d'app déjà copiés
+manuellement doivent être regroupés sous ce même nom pour éviter deux définitions
+du même domaine. Renseigner les domaines dans les fichiers Caddy avant publication.
+
+Première installation : sans manifeste, sans release enregistrée et sans conteneur
+ou volume Docker du projet, la CD initialise la stack sans appeler le backup global.
+Si une trace d'installation existe sans manifeste, elle s'arrête pour diagnostic.
+Pour une stack existante, le backup global reste obligatoire et toute erreur bloque
+le déploiement, y compris une erreur provenant d'une autre cible du serveur.

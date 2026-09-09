@@ -34,11 +34,23 @@ trap cleanup EXIT
 command -v make >/dev/null
 command -v python3 >/dev/null
 # Server provisioning owns secrets; fail before backup or deployment changes.
-for secret in postgres_password "${COMPOSE_ENVIRONMENT}.decrypt.private.php"; do
-    [[ -s "$APP_PATH/secrets/$secret" && -r "$APP_PATH/secrets/$secret" ]] || { echo "Missing or unreadable runtime secret: $secret" >&2; exit 1; }
+for secret in "$APP_PATH/secrets/postgres_password" "$APP_PATH/config/secrets/${COMPOSE_ENVIRONMENT}/${COMPOSE_ENVIRONMENT}.decrypt.private.php"; do
+    [[ -s "$secret" && -r "$secret" ]] || { echo "Missing or unreadable runtime secret: $secret" >&2; exit 1; }
 done
-server-release init "$APP_PATH" "$RELEASE_SERVICE" "$RELEASE_IMAGE"
-sudo /usr/local/lib/server-setup/backup-databases.sh
+# Never treat a missing manifest on an existing installation as a fresh install.
+if [[ -f "$APP_PATH/compose.runtime.yaml" ]]; then
+    server-release init "$APP_PATH" "$RELEASE_SERVICE" "$RELEASE_IMAGE"
+    sudo -n /usr/local/lib/server-setup/backup-databases.sh
+else
+    if [[ -f "$APP_PATH/.env.prod.local" ]] && grep -Eq '^PHP_SHA_CURRENT=.+$' "$APP_PATH/.env.prod.local"; then
+        echo 'Recorded release exists but runtime manifest is missing' >&2; exit 1
+    fi
+    existing_containers="$(docker ps -aq --filter "label=com.docker.compose.project=$COMPOSE_PROJECT_NAME")"
+    existing_volumes="$(docker volume ls -q --filter "label=com.docker.compose.project=$COMPOSE_PROJECT_NAME")"
+    [[ -z "$existing_containers" && -z "$existing_volumes" ]] || { echo 'Existing Docker resources without runtime manifest; reconciliation required' >&2; exit 1; }
+    server-release init "$APP_PATH" "$RELEASE_SERVICE" "$RELEASE_IMAGE"
+    echo 'First installation: no existing project resources to back up'
+fi
 tar -xzf "$ARCHIVE" -C "$APP_PATH"
 CANDIDATE="$(mktemp "$APP_PATH/.candidate.XXXXXX")"
 RESOLVED="$(mktemp "$APP_PATH/.resolved.XXXXXX")"
@@ -60,6 +72,7 @@ compose up --detach --wait database
 # Failures after this point need reconciliation; no blind rollback of schema/data.
 compose stop messenger scheduler
 compose up --detach --wait --remove-orphans
+sudo -n bash "$APP_PATH/deploy/update-caddy.sh" "$COMPOSE_PROJECT_NAME" "$APP_PATH/caddy/apps/application.caddy"
 curl --fail-with-body --show-error --silent --connect-timeout 10 --max-time 20 --retry 5 --retry-delay 5 --retry-max-time 120 --retry-all-errors "${APP_URL%/}/health"
 mv "$MANIFEST" "$APP_PATH/compose.runtime.yaml"
 MANIFEST=''
