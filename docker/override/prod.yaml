@@ -4,7 +4,7 @@ services:
     php:
         env_file:
             -   docker/env/prod.env
-        image: ${IMAGES_PREFIX:-}app-php-prod
+        image: ${PHP_IMAGE:-${IMAGES_PREFIX:-}app-php-prod}:${PHP_SHA_CURRENT:-${IMAGE_TAG:-dev}}
         build:
             context: .
             target: frankenphp_prod
@@ -27,6 +27,10 @@ services:
             POSTGRES_USER: prod
 
     messenger:
+        image: ${PHP_IMAGE:-${IMAGES_PREFIX:-}app-php-prod}:${PHP_SHA_CURRENT:-${IMAGE_TAG:-dev}}
+        secrets:
+            - source: symfony_decryption_key
+              target: /app/config/secrets/prod/prod.decrypt.private.php
         env_file:
             - docker/env/prod.env
         environment:
@@ -34,6 +38,10 @@ services:
             POSTGRES_USER: prod
 
     scheduler:
+        image: ${PHP_IMAGE:-${IMAGES_PREFIX:-}app-php-prod}:${PHP_SHA_CURRENT:-${IMAGE_TAG:-dev}}
+        secrets:
+            - source: symfony_decryption_key
+              target: /app/config/secrets/prod/prod.decrypt.private.php
         env_file:
             - docker/env/prod.env
         environment:
@@ -42,4 +50,4 @@ services:
 
 secrets:
     symfony_decryption_key:
-        file: config/secrets/prod/prod.decrypt.private.php
+        file: secrets/prod.decrypt.private.php

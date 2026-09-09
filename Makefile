@@ -3,19 +3,21 @@
 # ==============================================================================
 
 COMPOSE := docker compose
+COMPOSE_PROJECT_BASE ?= myapp
+RELEASE_SERVICE := php
 
 COMPOSE_DEV := $(COMPOSE) \
--p myapp-dev \
+-p $(COMPOSE_PROJECT_BASE)-dev \
 -f compose.yaml \
 -f docker/override/dev.yaml
 
 COMPOSE_PREPROD := $(COMPOSE) \
--p myapp-preprod \
+-p $(COMPOSE_PROJECT_BASE)-preprod \
 -f compose.yaml \
 -f docker/override/preprod.yaml
 
 COMPOSE_PROD := $(COMPOSE) \
--p myapp-prod \
+-p $(COMPOSE_PROJECT_BASE)-prod \
 -f compose.yaml \
 -f docker/override/prod.yaml
 
@@ -132,3 +134,26 @@ check-caddy-frankenphp:
 precommit: check-compose check-caddy-host check-caddy-frankenphp
 
 qa: precommit lint test
+
+# Build and deployment use the same modular Compose image definitions.
+.PHONY: preprod-build preprod-push prod-build prod-push
+preprod-build:
+	$(COMPOSE_PREPROD) build --pull $(RELEASE_SERVICE)
+preprod-push:
+	$(COMPOSE_PREPROD) push $(RELEASE_SERVICE)
+prod-build:
+	$(COMPOSE_PROD) build --pull $(RELEASE_SERVICE)
+prod-push:
+	$(COMPOSE_PROD) push $(RELEASE_SERVICE)
+
+# CD resolves image names from the same Compose source as build/push.
+.PHONY: deployment-config-json deployment-service deploy-source-config deploy-compose
+deployment-config-json:
+	@$(COMPOSE) -p "$(COMPOSE_PROJECT_BASE)-$(COMPOSE_ENVIRONMENT)" -f compose.yaml -f "docker/override/$(COMPOSE_ENVIRONMENT).yaml" config --format json --no-env-resolution
+deployment-service:
+	@echo $(RELEASE_SERVICE)
+deploy-source-config:
+	@$(COMPOSE) --project-name "$(COMPOSE_PROJECT_NAME)" --env-file "docker/env/$(COMPOSE_ENVIRONMENT).env" --env-file "$(CANDIDATE)" -f compose.yaml -f "docker/override/$(COMPOSE_ENVIRONMENT).yaml" config --format json
+deploy-compose: SHELL := /bin/bash
+deploy-compose:
+	@eval "set -- $$COMPOSE_ARGUMENTS"; $(COMPOSE) --env-file "$(CANDIDATE)" -f "$(MANIFEST)" "$$@"

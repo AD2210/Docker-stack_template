@@ -3,8 +3,12 @@ name: _Build
 on:
   workflow_call:
     inputs:
+      sha:
+        description: Exact validated commit
+        required: true
+        type: string
       tag:
-        description: "SEMVER release tag (example: v1.2.3)"
+        description: "SEMVER release tag (example: V1.2.3)"
         required: true
         type: string
       environment:
@@ -25,6 +29,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v7
         with:
+          ref: ${{ inputs.sha }}
           persist-credentials: false
 
       - name: Set up Docker Buildx
@@ -48,11 +53,17 @@ jobs:
       - name: Build and push images
         shell: bash
         env:
+          RELEASE_SHA: ${{ inputs.sha }}
           BUILD_ENV: ${{ inputs.environment }}
           IMAGE_TAG: ${{ inputs.tag }}
+          IMAGES_PREFIX: ghcr.io/${{ github.repository }}-
+          GHCR_USERNAME: ${{ github.actor }}
+          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
 
+          export IMAGES_PREFIX="${IMAGES_PREFIX,,}"
+          bash .github/scripts/assert-image-absent.sh "${IMAGES_PREFIX}app-php-${BUILD_ENV}" "$IMAGE_TAG"
           case "${BUILD_ENV}" in
             preprod)
               make preprod-build IMAGE_TAG="${IMAGE_TAG}"
