@@ -99,7 +99,7 @@ jobs:
             "${BUNDLE}/caddy/apps"
           umask 077
 
-          cp .github/scripts/render-runtime.py "${BUNDLE}/deploy/"
+          cp .github/scripts/render-runtime.sh "${BUNDLE}/deploy/"
           cp .github/scripts/update-caddy.sh "${BUNDLE}/deploy/"
           CADDY_APP=app
           if [[ "$COMPOSE_ENVIRONMENT" = preprod ]]; then CADDY_APP=preprod; fi
