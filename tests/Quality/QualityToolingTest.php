@@ -232,6 +232,18 @@ SH);
         }
     }
 
+    public function testInvalidAppUrlHasExplicitDiagnosticBeforeServerCommands(): void
+    {
+        $process = $this->runCommand(['bash', $this->root().'/.github/scripts/remote-deploy.sh'], [
+            'APP_PATH' => $this->temporary.'/app', 'COMPOSE_PROJECT_NAME' => 'test-preprod',
+            'COMPOSE_ENVIRONMENT' => 'preprod', 'RELEASE_TAG' => 'V0.1.2', 'RELEASE_SERVICE' => 'php',
+            'RELEASE_IMAGE' => 'ghcr.io/example/app', 'GHCR_USERNAME' => 'test',
+            'GHCR_TOKEN' => 'test', 'APP_URL' => 'example.invalid',
+        ]);
+        self::assertSame(2, $process->getExitCode());
+        self::assertStringContainsString('APP_URL must start with https://', $process->getErrorOutput());
+    }
+
     private function root(): string
     {
         return dirname(__DIR__, 2);

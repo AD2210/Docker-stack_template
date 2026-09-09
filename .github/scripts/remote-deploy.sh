@@ -16,7 +16,7 @@ umask 077
 [[ "$COMPOSE_ENVIRONMENT" = preprod || "$COMPOSE_ENVIRONMENT" = prod ]] || exit 2
 [[ "$RELEASE_TAG" =~ ^V(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]] || exit 2
 [[ "$RELEASE_IMAGE" =~ ^ghcr.io/[a-z0-9._/-]+$ ]] || exit 2
-[[ "$APP_URL" = https://* ]] || exit 2
+[[ "$APP_URL" = https://* ]] || { echo "APP_URL must start with https://" >&2; exit 2; }
 ARCHIVE="/tmp/${COMPOSE_PROJECT_NAME}-${RELEASE_TAG}.tar.gz"
 CANDIDATE=''
 MANIFEST=''
@@ -31,8 +31,8 @@ cleanup() {
 }
 trap cleanup EXIT
 # Renderer and Make must be provisioned before any runtime mutation.
-command -v make >/dev/null
-command -v python3 >/dev/null
+command -v make >/dev/null || { echo "Missing server prerequisite: make (SSH user PATH)" >&2; exit 1; }
+command -v python3 >/dev/null || { echo "Missing server prerequisite: python3 (SSH user PATH)" >&2; exit 1; }
 # Server provisioning owns secrets; fail before backup or deployment changes.
 for secret in "$APP_PATH/secrets/postgres_password" "$APP_PATH/config/secrets/${COMPOSE_ENVIRONMENT}/${COMPOSE_ENVIRONMENT}.decrypt.private.php"; do
     [[ -s "$secret" && -r "$secret" ]] || { echo "Missing or unreadable runtime secret: $secret" >&2; exit 1; }
