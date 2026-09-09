@@ -128,11 +128,13 @@ SH);
         preg_match_all('/secrets\.([A-Z_]+)/', $workflow, $matches);
         $names = array_values(array_unique($matches[1]));
         sort($names);
-        self::assertSame(['GITHUB_TOKEN', 'SSH_HOST', 'SSH_KNOWN_HOSTS', 'SSH_PRIVATE_KEY', 'SSH_USER'], $names);
+        self::assertSame(['GITHUB_TOKEN', 'SSH_HOST', 'SSH_KNOWN_HOSTS', 'SSH_PORT', 'SSH_PRIVATE_KEY', 'SSH_USER'], $names);
         preg_match_all('/vars\.([A-Z_]+)/', $workflow, $matches);
         self::assertSame(['APP_PATH', 'APP_URL'], $matches[1]);
         self::assertStringContainsString('${{ github.actor }}', $workflow);
         self::assertStringContainsString('StrictHostKeyChecking=yes', $workflow);
+        self::assertStringContainsString('ssh -p "$SSH_PORT"', $workflow);
+        self::assertStringContainsString('scp -P "$SSH_PORT"', $workflow);
         self::assertStringNotContainsString('${BUNDLE}/secrets', $workflow);
     }
 
@@ -154,6 +156,28 @@ SH);
             self::assertSame($expected, $process->getExitCode(), $process->getErrorOutput());
         }
         self::assertStringContainsString('https://ghcr.io/v2/example/app/manifests/V0.1.0', (string) file_get_contents($this->temporary.'/calls'));
+    }
+
+    public function testSshPortValidationRejectsInvalidValues(): void
+    {
+        $workflow = \Symfony\Component\Yaml\Yaml::parseFile($this->root().'/.github/workflows/_deploy.yaml');
+        $validation = '';
+        foreach ($workflow['jobs']['deploy']['steps'] as $step) {
+            if ('Validate deployment configuration' === ($step['name'] ?? '')) {
+                foreach (explode("\n", $step['run']) as $line) {
+                    if (str_contains($line, 'SSH_PORT')) {
+                        $validation = $line;
+                    }
+                }
+            }
+        }
+        self::assertNotSame('', $validation);
+        foreach (['1', '22', '2222', '65535'] as $port) {
+            self::assertTrue($this->runCommand(['bash', '-c', $validation], ['SSH_PORT' => $port])->isSuccessful());
+        }
+        foreach (['', '0', '65536', '999999999999', '-1', '022', '22; echo invalid', 'abc'] as $port) {
+            self::assertFalse($this->runCommand(['bash', '-c', $validation], ['SSH_PORT' => $port])->isSuccessful());
+        }
     }
 
     private function root(): string

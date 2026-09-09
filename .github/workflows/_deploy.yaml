@@ -53,6 +53,7 @@ jobs:
         shell: bash
         env:
           SSH_HOST: ${{ secrets.SSH_HOST }}
+          SSH_PORT: ${{ secrets.SSH_PORT }}
           SSH_USER: ${{ secrets.SSH_USER }}
           GITHUB_REPOSITORY: ${{ github.repository }}
           COMPOSE_ENVIRONMENT: ${{ inputs.compose_environment }}
@@ -62,6 +63,7 @@ jobs:
 
           bash .github/scripts/deployment-config.sh >> "$GITHUB_ENV"
           : "${SSH_HOST:?Missing environment secret SSH_HOST}"
+          [[ "$SSH_PORT" =~ ^[1-9][0-9]{0,4}$ ]] && (( SSH_PORT <= 65535 )) || { echo "SSH_PORT must be an integer from 1 to 65535" >&2; exit 1; }
           : "${SSH_USER:?Missing environment secret SSH_USER}"
           : "${APP_PATH:?Missing environment variable APP_PATH}"
           : "${APP_URL:?Missing environment variable APP_URL}"
@@ -108,16 +110,18 @@ jobs:
         shell: bash
         env:
           SSH_HOST: ${{ secrets.SSH_HOST }}
+          SSH_PORT: ${{ secrets.SSH_PORT }}
           SSH_USER: ${{ secrets.SSH_USER }}
         run: |
           set -euo pipefail
-          scp -o StrictHostKeyChecking=yes "${RUNNER_TEMP}/deploy.tar.gz" \
+          scp -P "$SSH_PORT" -o StrictHostKeyChecking=yes "${RUNNER_TEMP}/deploy.tar.gz" \
             "${SSH_USER}@${SSH_HOST}:/tmp/${COMPOSE_PROJECT_NAME}-${{ inputs.tag }}.tar.gz"
 
       - name: Prepare and deploy on server
         shell: bash
         env:
           SSH_HOST: ${{ secrets.SSH_HOST }}
+          SSH_PORT: ${{ secrets.SSH_PORT }}
           SSH_USER: ${{ secrets.SSH_USER }}
           GHCR_USERNAME: ${{ github.actor }}
           GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -133,7 +137,7 @@ jobs:
               "${COMPOSE_ENVIRONMENT}" "${RELEASE_SERVICE}" "${RELEASE_IMAGE}" \
               "${RELEASE_TAG}" "${GHCR_USERNAME}" "${GHCR_TOKEN}" "${APP_URL}"
             cat .github/scripts/remote-deploy.sh
-          } | ssh -o StrictHostKeyChecking=yes "${SSH_USER}@${SSH_HOST}" 'bash -s'
+          } | ssh -p "$SSH_PORT" -o StrictHostKeyChecking=yes "${SSH_USER}@${SSH_HOST}" 'bash -s'
 
       - name: Remove local deployment bundle
         if: always()

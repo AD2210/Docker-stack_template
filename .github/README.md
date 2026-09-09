@@ -15,6 +15,7 @@ pour `production`. Chaque environnement contient uniquement :
 | Variable | `APP_PATH` | Chemin serveur absolu stable, par exemple `/srv/apps/myapp-preprod` |
 | Variable | `APP_URL` | URL HTTPS publique ; le déploiement vérifie `/health` |
 | Secret | `SSH_HOST` | Nom DNS ou IP exacte du serveur |
+| Secret | `SSH_PORT` | Port SSH obligatoire, entier de 1 à 65535 (22 si standard) |
 | Secret | `SSH_USER` | Utilisateur de déploiement |
 | Secret | `SSH_PRIVATE_KEY` | Clé privée de connexion SSH |
 | Secret | `SSH_KNOWN_HOSTS` | Ligne(s) de clés publiques d'hôte vérifiées |
@@ -37,7 +38,7 @@ sudo ssh-keygen -lf /etc/ssh/ssh_host_ed25519_key.pub
 Depuis votre machine, remplacer le nom ci-dessous par **exactement** `SSH_HOST` :
 
 ```bash
-ssh-keyscan -t ed25519 serveur.example.fr > known_hosts
+ssh-keyscan -T 10 -p 2222 -t ed25519 serveur.example.fr > known_hosts
 ssh-keygen -lf known_hosts
 ```
 
@@ -46,11 +47,11 @@ n'authentifie pas le serveur. Si elles correspondent, copier le contenu intégra
 de `known_hosts` dans `SSH_KNOWN_HOSTS`, par exemple :
 
 ```text
-serveur.example.fr ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAA...
+[serveur.example.fr]:2222 ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAA...
 ```
 
 Il s'agit de la clé publique d'hôte, pas de l'empreinte ni de la clé privée SSH.
-Les workflows utilisent le port SSH standard 22.
+Remplacer `2222` par la valeur de `SSH_PORT`. Pour un port personnalisé, conserver la ligne complète `[hôte]:port` produite par `ssh-keyscan`. Les workflows utilisent `ssh -p` et `scp -P` avec ce même secret.
 
 ## Provisionnement serveur
 
