@@ -180,6 +180,19 @@ SH);
         }
     }
 
+    public function testProductionRequiresSeparateManualPromotion(): void
+    {
+        $release = \Symfony\Component\Yaml\Yaml::parseFile($this->root().'/.github/workflows/release.yaml');
+        self::assertArrayNotHasKey('deploy-production', $release['jobs']);
+        self::assertSame(['validate-release', 'build-production', 'deploy-preprod'], $release['jobs']['preprod-proof']['needs']);
+        $production = \Symfony\Component\Yaml\Yaml::parseFile($this->root().'/.github/workflows/production.yaml');
+        self::assertSame(['workflow_dispatch'], array_keys($production['on']));
+        self::assertSame("github.ref == 'refs/heads/main'", $production['jobs']['validate-promotion']['if']);
+        self::assertSame('validate-promotion', $production['jobs']['deploy-production']['needs']);
+        self::assertSame('${{ needs.validate-promotion.outputs.sha }}', $production['jobs']['deploy-production']['with']['sha']);
+        self::assertArrayNotHasKey('build-production', $production['jobs']);
+    }
+
     private function root(): string
     {
         return dirname(__DIR__, 2);
