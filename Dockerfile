@@ -137,7 +137,8 @@ FROM debian:13-slim AS frankenphp_prod
 
 SHELL ["/bin/bash", "-euxo", "pipefail", "-c"]
 
-ENV APP_ENV=prod
+ARG APP_ENV=prod
+ENV APP_ENV=${APP_ENV}
 ENV PHP_INI_SCAN_DIR=":/usr/local/etc/php/app.conf.d"
 
 COPY --from=frankenphp_prod_builder /usr/local/bin/frankenphp /usr/local/bin/frankenphp
