@@ -211,6 +211,27 @@ SH);
         self::assertArrayNotHasKey('build-production', $production['jobs']);
     }
 
+    public function testRegistryAcceptsOpaqueCredentialsWithoutCurlConfigInjection(): void
+    {
+        $this->mock('curl', <<<'SH'
+config="$(cat)"
+if [[ "$*" == *ghcr.io/token* ]]; then
+    printf '%s' "$config" > "$TEST_LOG"
+    printf '%s' '{"token":"registry+/token=="}'
+else
+    printf '404'
+fi
+SH);
+        foreach (['eyJ.header.payload-signature', "opaque\"\nurl = https://invalid.example", 'token+/='] as $token) {
+            $process = $this->runCommand(['bash', $this->root().'/.github/scripts/assert-image-absent.sh', 'ghcr.io/example/app', 'V0.1.2'], [
+                'GHCR_USERNAME' => 'test', 'GHCR_TOKEN' => $token,
+            ]);
+            self::assertTrue($process->isSuccessful(), $process->getErrorOutput());
+            self::assertSame('header = "Authorization: Basic '.base64_encode('test:'.$token).'"', file_get_contents($this->temporary.'/calls'));
+            self::assertStringNotContainsString($token, $process->getOutput().$process->getErrorOutput());
+        }
+    }
+
     private function root(): string
     {
         return dirname(__DIR__, 2);
