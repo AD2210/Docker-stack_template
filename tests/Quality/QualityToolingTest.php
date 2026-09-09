@@ -53,6 +53,7 @@ SH);
         foreach (['server-release', 'sudo', 'docker', 'curl', 'tar', 'setfacl'] as $command) {
             $this->mock($command, <<<'SH'
 printf '%s %s\n' "$(basename "$0")" "$*" >> "$TEST_LOG"
+if [[ "$(basename "$0")" == docker && ( "$1" == ps || "$1" == volume ) ]]; then printf '%s' "${EXISTING_RESOURCE:-}"; fi
 if [[ "$(basename "$0")" == docker && "$1" == login ]]; then
     cat >/dev/null
     printf '%s' "$DOCKER_CONFIG" > "$TEST_LOG.registry"
@@ -67,8 +68,10 @@ SH);
         }
         mkdir($this->temporary.'/app/secrets', 0700, true);
         file_put_contents($this->temporary.'/app/secrets/postgres_password', 'test-db-only');
-        file_put_contents($this->temporary.'/app/secrets/preprod.decrypt.private.php', 'test-key-only');
+        mkdir($this->temporary.'/app/config/secrets/preprod', 0700, true);
+        file_put_contents($this->temporary.'/app/config/secrets/preprod/preprod.decrypt.private.php', 'test-key-only');
         copy($this->root().'/Makefile', $this->temporary.'/app/Makefile');
+        file_put_contents($this->temporary.'/app/compose.runtime.yaml', '{}');
         mkdir($this->temporary.'/app/deploy');
         copy($this->root().'/.github/scripts/render-runtime.py', $this->temporary.'/app/deploy/render-runtime.py');
         $env = [
@@ -98,7 +101,7 @@ SH);
         self::assertTrue($process->isSuccessful(), $process->getErrorOutput());
         $calls = (string) file_get_contents($this->temporary.'/calls');
         $previous = -1;
-        foreach (['server-release init', 'sudo /usr/local/lib/server-setup/backup-databases.sh', 'tar -xzf', '--entrypoint php --user 33', 'stop messenger scheduler', 'up --detach --wait --remove-orphans', 'curl ', 'server-release record'] as $marker) {
+        foreach (['server-release init', 'sudo -n /usr/local/lib/server-setup/backup-databases.sh', 'tar -xzf', '--entrypoint php --user 33', 'stop messenger scheduler', 'up --detach --wait --remove-orphans', 'curl ', 'server-release record'] as $marker) {
             $position = strpos($calls, $marker);
             self::assertNotFalse($position, $marker);
             self::assertGreaterThan($previous, $position, $marker);
@@ -106,8 +109,9 @@ SH);
         }
         self::assertStringContainsString('/health', $calls);
         self::assertStringContainsString('is_readable($path)', $calls);
+        self::assertStringContainsString('sudo -n bash '.$this->temporary.'/app/deploy/update-caddy.sh', $calls);
         self::assertSame('test-db-only', file_get_contents($this->temporary.'/app/secrets/postgres_password'));
-        self::assertSame('test-key-only', file_get_contents($this->temporary.'/app/secrets/preprod.decrypt.private.php'));
+        self::assertSame('test-key-only', file_get_contents($this->temporary.'/app/config/secrets/preprod/preprod.decrypt.private.php'));
         self::assertDirectoryDoesNotExist((string) file_get_contents($this->temporary.'/calls.registry'));
         self::assertSame([], glob($this->temporary.'/app/.candidate.*'));
         self::assertSame([], glob($this->temporary.'/app/.runtime.*'));
@@ -116,6 +120,20 @@ SH);
         $manifest = json_decode((string) file_get_contents($this->temporary.'/app/compose.runtime.yaml'), true, flags: JSON_THROW_ON_ERROR);
         self::assertSame('prospection-quality-test', $manifest['name']);
         self::assertStringContainsString('PHP_SHA_CURRENT', $manifest['services']['php']['image']);
+        unlink($this->temporary.'/app/compose.runtime.yaml');
+        file_put_contents($this->temporary.'/calls', '');
+        $first = $this->runCommand(['bash', $this->root().'/.github/scripts/remote-deploy.sh'], $env + ['FAIL_COMMAND' => 'tar']);
+        self::assertFalse($first->isSuccessful());
+        $firstCalls = (string) file_get_contents($this->temporary.'/calls');
+        self::assertStringContainsString('server-release init', $firstCalls);
+        self::assertStringNotContainsString('backup-databases.sh', $firstCalls);
+        file_put_contents($this->temporary.'/calls', '');
+        self::assertFalse($this->runCommand(['bash', $this->root().'/.github/scripts/remote-deploy.sh'], $env + ['EXISTING_RESOURCE' => 'existing-data'])->isSuccessful());
+        self::assertStringNotContainsString('server-release init', (string) file_get_contents($this->temporary.'/calls'));
+        file_put_contents($this->temporary.'/app/.env.prod.local', "PHP_SHA_CURRENT=V0.1.0\n");
+        file_put_contents($this->temporary.'/calls', '');
+        self::assertFalse($this->runCommand(['bash', $this->root().'/.github/scripts/remote-deploy.sh'], $env)->isSuccessful());
+        self::assertSame('', file_get_contents($this->temporary.'/calls'));
         unlink($this->temporary.'/app/secrets/postgres_password');
         file_put_contents($this->temporary.'/calls', '');
         self::assertFalse($this->runCommand(['bash', $this->root().'/.github/scripts/remote-deploy.sh'], $env)->isSuccessful());

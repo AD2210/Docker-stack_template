@@ -52,4 +52,4 @@ services:
 
 secrets:
     symfony_decryption_key:
-        file: secrets/preprod.decrypt.private.php
+        file: config/secrets/preprod/preprod.decrypt.private.php

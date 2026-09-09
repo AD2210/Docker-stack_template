@@ -50,4 +50,4 @@ services:
 
 secrets:
     symfony_decryption_key:
-        file: secrets/prod.decrypt.private.php
+        file: config/secrets/prod/prod.decrypt.private.php
