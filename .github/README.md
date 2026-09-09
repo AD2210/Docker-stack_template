@@ -1,14 +1,30 @@
 # GitHub Actions CI/CD
 
-Les branches de travail exécutent la CI. Une release Git Flow finalisée porte un tag
-`Vx.y.z` : QA, build des images preprod/prod, déploiement preprod puis validation de
-l'environnement GitHub `production`. Utiliser les commandes `git flow` et configurer
-`gitflow.prefix.versiontag` à `V` ; le tag est créé lors de `release finish`.
+Les tags `Vx.y.z` déclenchent la QA, les builds preprod/prod et uniquement le
+déploiement preprod. Après succès de la préproduction et du build prod, le workflow
+conserve pendant 90 jours une preuve liée au tag et au SHA exacts.
+
+Pour promouvoir : **Actions → Promote production → Run workflow**, sélectionner
+la branche **main**, renseigner le tag validé puis lancer. Ce lancement constitue
+la validation humaine. Le workflow vérifie que le tag appartient à main et qu'une
+exécution Release réussie a produit sa preuve de préproduction pour le même SHA.
+Il déploie l'image prod déjà construite, sans rebuild. Preprod et prod ont des
+images distinctes car APP_ENV diffère, mais proviennent du même commit validé.
+Une preuve absente, expirée, un tag déplacé ou une API indisponible bloque la promotion.
+Les anciennes releases sans preuve ne sont pas promouvables par ce parcours.
+Ne pas relancer les builds d'un tag déjà publié : préparer une nouvelle version PATCH.
+
+Le workflow doit être présent sur main avant utilisation. Dans les restrictions
+de l'environnement production, autoriser **la branche main** : la référence de
+l'exécution manuelle est main, même si l'image déployée utilise un tag Vx.y.z.
+La préproduction doit autoriser les tags V*.*.* et main pour une relance manuelle.
+Aucun Required reviewer payant n'est requis ; protéger les modifications des workflows
+et réserver les droits de déclenchement aux personnes autorisées. Cette procédure
+ne constitue pas une approbation indépendante d'un administrateur du dépôt.
 
 ## Configuration GitHub
 
-Créer les environnements `preprod` et `production`, avec un reviewer obligatoire
-pour `production`. Chaque environnement contient uniquement :
+Créer les environnements `preprod` et `production`. Chaque environnement contient uniquement :
 
 | Type | Nom | Valeur |
 | --- | --- | --- |

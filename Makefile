@@ -157,3 +157,8 @@ deploy-source-config:
 deploy-compose: SHELL := /bin/bash
 deploy-compose:
 	@eval "set -- $$COMPOSE_ARGUMENTS"; $(COMPOSE) --env-file "$(CANDIDATE)" -f "$(MANIFEST)" "$$@"
+
+.PHONY: test-promotion
+test-promotion:
+	python3 -m unittest discover -s tests/Quality -p "test_*.py"
+test: test-promotion

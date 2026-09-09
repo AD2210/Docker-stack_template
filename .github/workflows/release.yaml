@@ -96,19 +96,20 @@ jobs:
       compose_environment: preprod
     secrets: inherit
 
-  deploy-production:
-    name: Deploy production
-    needs:
-      - validate-release
-      - build-production
-      - deploy-preprod
-    permissions:
-      contents: read
-      packages: read
-    uses: ./.github/workflows/_deploy.yaml
-    with:
-      tag: ${{ needs.validate-release.outputs.tag }}
-      sha: ${{ needs.validate-release.outputs.sha }}
-      environment: production
-      compose_environment: prod
-    secrets: inherit
+  preprod-proof:
+    name: Record validated preproduction
+    needs: [validate-release, build-production, deploy-preprod]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Write validation receipt
+        env:
+          RELEASE_TAG: ${{ needs.validate-release.outputs.tag }}
+          RELEASE_SHA: ${{ needs.validate-release.outputs.sha }}
+        run: printf '%s %s\n' "$RELEASE_TAG" "$RELEASE_SHA" > preprod-validation.txt
+      - name: Store validation receipt
+        uses: actions/upload-artifact@v4
+        with:
+          name: preprod-${{ needs.validate-release.outputs.tag }}-${{ needs.validate-release.outputs.sha }}
+          path: preprod-validation.txt
+          retention-days: 90
+          if-no-files-found: error

@@ -29,8 +29,7 @@ jobs:
     name: Deploy ${{ inputs.environment }}
     runs-on: ubuntu-latest
 
-    # Configure a required reviewer on the `production` GitHub Environment.
-    # The job, and therefore its production secrets, remain blocked until approval.
+    # Production is called only by the separate manual promotion workflow.
     environment:
       name: ${{ inputs.environment }}
 
