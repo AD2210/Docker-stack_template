@@ -1,0 +1,119 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "V*.*.*"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Existing Git tag to release (example: V1.2.3)"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.repository }}
+  cancel-in-progress: false
+
+jobs:
+  validate-release:
+    name: Validate release
+    runs-on: ubuntu-latest
+    outputs:
+      tag: ${{ steps.release.outputs.tag }}
+      sha: ${{ steps.release.outputs.sha }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Resolve and validate tag
+        id: release
+        shell: bash
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          INPUT_TAG: ${{ inputs.tag }}
+          REF_NAME: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          TAG="$REF_NAME"
+          if [[ "$EVENT_NAME" == workflow_dispatch ]]; then TAG="$INPUT_TAG"; fi
+          bash .github/scripts/resolve-release.sh "$TAG" >> "$GITHUB_OUTPUT"
+
+  quality:
+    name: Quality
+    needs: validate-release
+    uses: ./.github/workflows/_quality.yaml
+    with:
+      sha: ${{ needs.validate-release.outputs.sha }}
+
+  build-preprod:
+    name: Build preprod
+    if: vars.ENABLE_DEPLOYMENT == 'true'
+    needs:
+      - validate-release
+      - quality
+    permissions:
+      contents: read
+      packages: write
+    uses: ./.github/workflows/_build.yaml
+    with:
+      tag: ${{ needs.validate-release.outputs.tag }}
+      sha: ${{ needs.validate-release.outputs.sha }}
+      environment: preprod
+
+  build-production:
+    name: Build production
+    if: vars.ENABLE_DEPLOYMENT == 'true'
+    needs:
+      - validate-release
+      - quality
+    permissions:
+      contents: read
+      packages: write
+    uses: ./.github/workflows/_build.yaml
+    with:
+      tag: ${{ needs.validate-release.outputs.tag }}
+      sha: ${{ needs.validate-release.outputs.sha }}
+      environment: prod
+
+  deploy-preprod:
+    name: Deploy preprod
+    if: vars.ENABLE_DEPLOYMENT == 'true'
+    needs:
+      - validate-release
+      - build-preprod
+    permissions:
+      contents: read
+      packages: read
+    uses: ./.github/workflows/_deploy.yaml
+    with:
+      tag: ${{ needs.validate-release.outputs.tag }}
+      sha: ${{ needs.validate-release.outputs.sha }}
+      environment: preprod
+      compose_environment: preprod
+    secrets: inherit
+
+  preprod-proof:
+    name: Record validated preproduction
+    if: vars.ENABLE_DEPLOYMENT == 'true'
+    needs: [validate-release, build-production, deploy-preprod]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Write validation receipt
+        env:
+          RELEASE_TAG: ${{ needs.validate-release.outputs.tag }}
+          RELEASE_SHA: ${{ needs.validate-release.outputs.sha }}
+        run: printf '%s %s\n' "$RELEASE_TAG" "$RELEASE_SHA" > preprod-validation.txt
+      - name: Store validation receipt
+        uses: actions/upload-artifact@v4
+        with:
+          name: preprod-v2-${{ needs.validate-release.outputs.tag }}-${{ needs.validate-release.outputs.sha }}
+          path: preprod-validation.txt
+          retention-days: 90
+          if-no-files-found: error

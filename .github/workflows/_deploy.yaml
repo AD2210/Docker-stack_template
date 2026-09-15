@@ -1,0 +1,152 @@
+name: _Deploy
+
+on:
+  workflow_call:
+    inputs:
+      sha:
+        description: Exact validated commit
+        required: true
+        type: string
+      tag:
+        description: "SEMVER release tag to deploy"
+        required: true
+        type: string
+      environment:
+        description: "GitHub Environment name: preprod or production"
+        required: true
+        type: string
+      compose_environment:
+        description: "Compose environment: preprod or prod"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  packages: read
+
+jobs:
+  deploy:
+    name: Deploy ${{ inputs.environment }}
+    runs-on: ubuntu-latest
+
+    # Production is called only by the separate manual promotion workflow.
+    environment:
+      name: ${{ inputs.environment }}
+
+    concurrency:
+      group: deploy-${{ inputs.environment }}
+      cancel-in-progress: false
+
+    env:
+      APP_PATH: ${{ vars.APP_PATH }}
+      APP_URL: ${{ vars.APP_URL }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.sha }}
+          persist-credentials: false
+
+      - name: Validate deployment configuration
+        shell: bash
+        env:
+          SSH_HOST: ${{ secrets.SSH_HOST }}
+          SSH_PORT: ${{ secrets.SSH_PORT }}
+          SSH_USER: ${{ secrets.SSH_USER }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          COMPOSE_ENVIRONMENT: ${{ inputs.compose_environment }}
+          IMAGE_TAG: ${{ inputs.tag }}
+        run: |
+          set -euo pipefail
+
+          bash .github/scripts/deployment-config.sh >> "$GITHUB_ENV"
+          : "${SSH_HOST:?Missing environment secret SSH_HOST}"
+          [[ "$SSH_PORT" =~ ^[1-9][0-9]{0,4}$ ]] && (( SSH_PORT <= 65535 )) || { echo "SSH_PORT must be an integer from 1 to 65535" >&2; exit 1; }
+          : "${SSH_USER:?Missing environment secret SSH_USER}"
+          : "${APP_PATH:?Missing environment variable APP_PATH}"
+          : "${APP_URL:?Missing environment variable APP_URL}"
+          [[ "$APP_URL" = https://* ]] || { echo "APP_URL must start with https://" >&2; exit 2; }
+
+      - name: Configure SSH
+        shell: bash
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+          SSH_KNOWN_HOSTS: ${{ secrets.SSH_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          : "${SSH_PRIVATE_KEY:?Missing environment secret SSH_PRIVATE_KEY}"
+          : "${SSH_KNOWN_HOSTS:?Missing environment secret SSH_KNOWN_HOSTS (not a variable)}"
+          install -d -m 700 "${HOME}/.ssh"
+          printf '%s\n' "${SSH_PRIVATE_KEY}" > "${HOME}/.ssh/id_ed25519"
+          chmod 600 "${HOME}/.ssh/id_ed25519"
+          printf '%s\n' "${SSH_KNOWN_HOSTS}" > "${HOME}/.ssh/known_hosts"
+          chmod 600 "${HOME}/.ssh/known_hosts"
+
+      - name: Prepare deployment bundle
+        shell: bash
+        env:
+          COMPOSE_ENVIRONMENT: ${{ inputs.compose_environment }}
+        run: |
+          set -euo pipefail
+
+          BUNDLE="${RUNNER_TEMP}/deploy"
+          mkdir -p \
+            "${BUNDLE}/docker/services" \
+            "${BUNDLE}/docker/override" \
+            "${BUNDLE}/docker/env" \
+            "${BUNDLE}/deploy" \
+            "${BUNDLE}/caddy/apps"
+          umask 077
+
+          cp .github/scripts/render-runtime.sh "${BUNDLE}/deploy/"
+          cp .github/scripts/update-caddy.sh "${BUNDLE}/deploy/"
+          CADDY_APP=app
+          if [[ "$COMPOSE_ENVIRONMENT" = preprod ]]; then CADDY_APP=preprod; fi
+          cp "caddy/apps/${CADDY_APP}.caddy" "${BUNDLE}/caddy/apps/application.caddy"
+          cp Makefile "${BUNDLE}/"
+          cp compose.yaml "${BUNDLE}/"
+          cp .env "${BUNDLE}/"
+          cp -R docker/services/. "${BUNDLE}/docker/services/"
+          cp "docker/override/${COMPOSE_ENVIRONMENT}.yaml" "${BUNDLE}/docker/override/"
+          cp "docker/env/${COMPOSE_ENVIRONMENT}.env" "${BUNDLE}/docker/env/"
+
+          tar -C "${BUNDLE}" -czf "${RUNNER_TEMP}/deploy.tar.gz" .
+
+      - name: Copy deployment bundle
+        shell: bash
+        env:
+          SSH_HOST: ${{ secrets.SSH_HOST }}
+          SSH_PORT: ${{ secrets.SSH_PORT }}
+          SSH_USER: ${{ secrets.SSH_USER }}
+        run: |
+          set -euo pipefail
+          scp -P "$SSH_PORT" -o StrictHostKeyChecking=yes "${RUNNER_TEMP}/deploy.tar.gz" \
+            "${SSH_USER}@${SSH_HOST}:/tmp/${COMPOSE_PROJECT_NAME}-${{ inputs.tag }}.tar.gz"
+
+      - name: Prepare and deploy on server
+        shell: bash
+        env:
+          SSH_HOST: ${{ secrets.SSH_HOST }}
+          SSH_PORT: ${{ secrets.SSH_PORT }}
+          SSH_USER: ${{ secrets.SSH_USER }}
+          GHCR_USERNAME: ${{ github.actor }}
+          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_TAG: ${{ inputs.tag }}
+          COMPOSE_ENVIRONMENT: ${{ inputs.compose_environment }}
+        run: |
+          set -euo pipefail
+
+          # Send environment via encrypted stdin, not SSH process arguments.
+          {
+            printf 'export APP_PATH=%q COMPOSE_PROJECT_NAME=%q COMPOSE_ENVIRONMENT=%q RELEASE_SERVICE=%q RELEASE_IMAGE=%q RELEASE_TAG=%q GHCR_USERNAME=%q GHCR_TOKEN=%q APP_URL=%q\n' \
+              "${APP_PATH}" "${COMPOSE_PROJECT_NAME}" \
+              "${COMPOSE_ENVIRONMENT}" "${RELEASE_SERVICE}" "${RELEASE_IMAGE}" \
+              "${RELEASE_TAG}" "${GHCR_USERNAME}" "${GHCR_TOKEN}" "${APP_URL}"
+            cat .github/scripts/remote-deploy.sh
+          } | ssh -p "$SSH_PORT" -o StrictHostKeyChecking=yes "${SSH_USER}@${SSH_HOST}" 'bash -s'
+
+      - name: Remove local deployment bundle
+        if: always()
+        shell: bash
+        run: rm -rf "${RUNNER_TEMP}/deploy" "${RUNNER_TEMP}/deploy.tar.gz"

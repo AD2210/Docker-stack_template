@@ -1,0 +1,11 @@
+(common-security) {
+    header {
+        X-Content-Type-Options nosniff
+        Referrer-Policy strict-origin-when-cross-origin
+    }
+}
+
+# Match the Server-setup shared snippet name for local validation.
+(security) {
+    import common-security
+}

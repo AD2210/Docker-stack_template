@@ -1,0 +1,6 @@
+{
+	metrics
+}
+
+import caddy/snippets/*
+import caddy/apps/*

@@ -1,0 +1,49 @@
+name: Promote production
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: promotion-production
+  cancel-in-progress: false
+
+jobs:
+  validate-promotion:
+    if: vars.ENABLE_DEPLOYMENT == 'true' && github.ref_type == 'tag'
+    runs-on: ubuntu-latest
+    outputs:
+      tag: ${{ steps.release.outputs.tag }}
+      sha: ${{ steps.release.outputs.sha }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Resolve immutable release
+        id: release
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: bash .github/scripts/resolve-release.sh "$RELEASE_TAG" >> "$GITHUB_OUTPUT"
+      - name: Require successful preproduction and prepared production image
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_TAG: ${{ steps.release.outputs.tag }}
+          RELEASE_SHA: ${{ steps.release.outputs.sha }}
+        run: bash .github/scripts/verify-preprod.sh
+
+  deploy-production:
+    needs: validate-promotion
+    permissions:
+      contents: read
+      packages: read
+    uses: ./.github/workflows/_deploy.yaml
+    with:
+      tag: ${{ needs.validate-promotion.outputs.tag }}
+      sha: ${{ needs.validate-promotion.outputs.sha }}
+      environment: production
+      compose_environment: prod
+    secrets: inherit

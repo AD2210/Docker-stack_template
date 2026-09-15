@@ -1,0 +1,26 @@
+# Compose atomique pour la base de données PostgreSQL
+services:
+    database:
+        restart: unless-stopped
+        image: postgres:${POSTGRES_VERSION:-16}-alpine
+
+        environment:
+            POSTGRES_PASSWORD_FILE: /run/secrets/postgres_password
+        secrets:
+            - postgres_password
+
+        healthcheck:
+            test: 'pg_isready -d "$$POSTGRES_DB" -U "$$POSTGRES_USER"'
+            interval: 5s
+            timeout: 5s
+            retries: 5
+            start_period: 60s
+        volumes:
+            - database_data:/var/lib/postgresql/data:rw
+
+volumes:
+    database_data:
+
+secrets:
+    postgres_password:
+        file: ../../secrets/postgres_password

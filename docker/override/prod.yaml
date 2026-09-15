@@ -1,0 +1,53 @@
+---
+# Production environment override
+services:
+    php:
+        env_file:
+            -   docker/env/prod.env
+        image: ${PHP_IMAGE:-${IMAGES_PREFIX:-}app-php-prod}:${PHP_SHA_CURRENT:-${IMAGE_TAG:-dev}}
+        build:
+            context: .
+            target: frankenphp_prod
+        ports: !override
+            - name: http
+              target: 80
+              host_ip: ${PHP_HOST_IP:-127.0.0.1}
+              published: ${PHP_HTTP_PORT:-8000}
+              protocol: tcp
+        environment:
+            #MERCURE_PUBLISHER_JWT_KEY: ${CADDY_MERCURE_JWT_SECRET}
+            #MERCURE_SUBSCRIBER_JWT_KEY: ${CADDY_MERCURE_JWT_SECRET}
+        secrets:
+            - source: symfony_decryption_key
+              target: /app/config/secrets/prod/prod.decrypt.private.php
+
+    database:
+        environment:
+            POSTGRES_DB: app-prod
+            POSTGRES_USER: prod
+
+    messenger:
+        image: ${PHP_IMAGE:-${IMAGES_PREFIX:-}app-php-prod}:${PHP_SHA_CURRENT:-${IMAGE_TAG:-dev}}
+        secrets:
+            - source: symfony_decryption_key
+              target: /app/config/secrets/prod/prod.decrypt.private.php
+        env_file:
+            - docker/env/prod.env
+        environment:
+            POSTGRES_DB: app-prod
+            POSTGRES_USER: prod
+
+    scheduler:
+        image: ${PHP_IMAGE:-${IMAGES_PREFIX:-}app-php-prod}:${PHP_SHA_CURRENT:-${IMAGE_TAG:-dev}}
+        secrets:
+            - source: symfony_decryption_key
+              target: /app/config/secrets/prod/prod.decrypt.private.php
+        env_file:
+            - docker/env/prod.env
+        environment:
+            POSTGRES_DB: app-prod
+            POSTGRES_USER: prod
+
+secrets:
+    symfony_decryption_key:
+        file: config/secrets/prod/prod.decrypt.private.php
