@@ -8,3 +8,8 @@
         format json
     }
 }
+
+# Match the Server-setup shared snippet name for local validation.
+(logging) {
+    import common-log app
+}

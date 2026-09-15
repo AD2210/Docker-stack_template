@@ -2,6 +2,12 @@ name: _Quality
 
 on:
   workflow_call:
+    inputs:
+      sha:
+        description: Exact commit to test
+        required: false
+        type: string
+        default: ""
 
 permissions:
   contents: read
@@ -14,6 +20,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v7
         with:
+          ref: ${{ inputs.sha || github.sha }}
           persist-credentials: false
 
       - name: Validate Compose configurations
@@ -42,6 +49,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v7
         with:
+          ref: ${{ inputs.sha || github.sha }}
           persist-credentials: false
 
       - name: Setup PHP
@@ -73,6 +81,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v7
         with:
+          ref: ${{ inputs.sha || github.sha }}
           persist-credentials: false
 
       - name: Setup PHP

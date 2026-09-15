@@ -2,7 +2,6 @@
 include:
   - docker/services/app.yaml
   - docker/services/database.yaml
-  #- docker/services/messenger.yaml
-  #- docker/services/scheduler.yaml
+  - docker/services/messenger.yaml
+  - docker/services/scheduler.yaml
   #- docker/services/mercure.yaml
-  #- docker/services/mailer.yaml

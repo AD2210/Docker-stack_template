@@ -4,7 +4,7 @@ services:
     php:
         env_file:
             -   docker/env/preprod.env
-        image: ${IMAGES_PREFIX:-}app-php-preprod
+        image: ${PHP_IMAGE:-${IMAGES_PREFIX:-}app-php-preprod}:${PHP_SHA_CURRENT:-${IMAGE_TAG:-dev}}
         build:
             context: .
             target: frankenphp_prod
@@ -27,6 +27,29 @@ services:
         environment:
             POSTGRES_DB: app-preprod
             POSTGRES_USER: preprod
+
+    messenger:
+        image: ${PHP_IMAGE:-${IMAGES_PREFIX:-}app-php-preprod}:${PHP_SHA_CURRENT:-${IMAGE_TAG:-dev}}
+        secrets:
+            - source: symfony_decryption_key
+              target: /app/config/secrets/preprod/preprod.decrypt.private.php
+        env_file:
+            - docker/env/preprod.env
+        environment:
+            POSTGRES_DB: app-preprod
+            POSTGRES_USER: preprod
+
+    scheduler:
+        image: ${PHP_IMAGE:-${IMAGES_PREFIX:-}app-php-preprod}:${PHP_SHA_CURRENT:-${IMAGE_TAG:-dev}}
+        secrets:
+            - source: symfony_decryption_key
+              target: /app/config/secrets/preprod/preprod.decrypt.private.php
+        env_file:
+            - docker/env/preprod.env
+        environment:
+            POSTGRES_DB: app-preprod
+            POSTGRES_USER: preprod
+
 secrets:
     symfony_decryption_key:
         file: config/secrets/preprod/preprod.decrypt.private.php
