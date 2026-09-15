@@ -1,8 +1,14 @@
 # GitHub Actions CI/CD
 
-Les tags `Vx.y.z` déclenchent la QA, les builds preprod/prod et uniquement le
-déploiement preprod. Après succès de la préproduction et du build prod, le workflow
-conserve pendant 90 jours une preuve liée au tag et au SHA exacts.
+Par défaut, le template ne publie aucune image et ne déploie rien. Les tags
+`Vx.y.z` déclenchent seulement la résolution du tag et la QA tant que la variable
+de dépôt `ENABLE_DEPLOYMENT` ne vaut pas `true`.
+
+Dans un projet créé depuis ce template et prêt à être déployé, créer la variable
+de dépôt `ENABLE_DEPLOYMENT=true`. Les tags `Vx.y.z` déclenchent alors la QA, les
+builds preprod/prod et uniquement le déploiement preprod. Après succès de la
+préproduction et du build prod, le workflow conserve pendant 90 jours une preuve
+liée au tag et au SHA exacts.
 
 Pour promouvoir : **Actions → Promote production → Run workflow**, sélectionner
 directement le **tag validé Vx.y.z**, puis lancer sans champ supplémentaire. Ce lancement constitue
@@ -23,6 +29,12 @@ et réserver les droits de déclenchement aux personnes autorisées. Cette proc�
 ne constitue pas une approbation indépendante d'un administrateur du dépôt.
 
 ## Configuration GitHub
+
+Créer d'abord cette variable au niveau du dépôt :
+
+| Type | Nom | Valeur |
+| --- | --- | --- |
+| Variable | `ENABLE_DEPLOYMENT` | `true` uniquement pour les projets réellement déployables |
 
 Créer les environnements `preprod` et `production`. Chaque environnement contient uniquement :
 

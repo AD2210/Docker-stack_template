@@ -54,6 +54,7 @@ jobs:
 
   build-preprod:
     name: Build preprod
+    if: vars.ENABLE_DEPLOYMENT == 'true'
     needs:
       - validate-release
       - quality
@@ -68,6 +69,7 @@ jobs:
 
   build-production:
     name: Build production
+    if: vars.ENABLE_DEPLOYMENT == 'true'
     needs:
       - validate-release
       - quality
@@ -82,6 +84,7 @@ jobs:
 
   deploy-preprod:
     name: Deploy preprod
+    if: vars.ENABLE_DEPLOYMENT == 'true'
     needs:
       - validate-release
       - build-preprod
@@ -98,6 +101,7 @@ jobs:
 
   preprod-proof:
     name: Record validated preproduction
+    if: vars.ENABLE_DEPLOYMENT == 'true'
     needs: [validate-release, build-production, deploy-preprod]
     runs-on: ubuntu-latest
     steps:

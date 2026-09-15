@@ -13,7 +13,7 @@ concurrency:
 
 jobs:
   validate-promotion:
-    if: github.ref_type == 'tag'
+    if: vars.ENABLE_DEPLOYMENT == 'true' && github.ref_type == 'tag'
     runs-on: ubuntu-latest
     outputs:
       tag: ${{ steps.release.outputs.tag }}
@@ -45,5 +45,5 @@ jobs:
       tag: ${{ needs.validate-promotion.outputs.tag }}
       sha: ${{ needs.validate-promotion.outputs.sha }}
       environment: production
-      compose_environment: production
+      compose_environment: prod
     secrets: inherit

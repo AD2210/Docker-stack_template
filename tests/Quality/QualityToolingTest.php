@@ -88,16 +88,12 @@ SH);
             self::assertNotSame(0, $process->getExitCode(), $process->getErrorOutput());
             self::assertStringNotContainsString('server-release record', (string) file_get_contents($this->temporary.'/calls'));
         }
-        foreach (['--entrypoint php --user 33'] as $failure) {
-            file_put_contents($this->temporary.'/calls', '');
-            $process = $this->runCommand(['bash', $this->root().'/.github/scripts/remote-deploy.sh'], $env + ['FAIL_MATCH' => $failure]);
-            self::assertNotSame(0, $process->getExitCode(), $process->getErrorOutput());
-            $failedCalls = (string) file_get_contents($this->temporary.'/calls');
-            self::assertStringNotContainsString('server-release record', $failedCalls);
-            if ('--entrypoint php --user 33' === $failure) {
-                self::assertStringNotContainsString('stop messenger scheduler', $failedCalls);
-            }
-        }
+        file_put_contents($this->temporary.'/calls', '');
+        $process = $this->runCommand(['bash', $this->root().'/.github/scripts/remote-deploy.sh'], $env + ['FAIL_MATCH' => '--entrypoint php --user 33']);
+        self::assertNotSame(0, $process->getExitCode(), $process->getErrorOutput());
+        $failedCalls = (string) file_get_contents($this->temporary.'/calls');
+        self::assertStringNotContainsString('server-release record', $failedCalls);
+        self::assertStringNotContainsString('stop messenger scheduler', $failedCalls);
         file_put_contents($this->temporary.'/calls', '');
         $process = $this->runCommand(['bash', '-s'], $env, (string) file_get_contents($this->root().'/.github/scripts/remote-deploy.sh'));
         self::assertTrue($process->isSuccessful(), $process->getErrorOutput());
@@ -180,7 +176,7 @@ SH);
 
     public function testSshPortValidationRejectsInvalidValues(): void
     {
-        $workflow = \Symfony\Component\Yaml\Yaml::parseFile($this->root().'/.github/workflows/_deploy.yaml');
+        $workflow = Yaml::parseFile($this->root().'/.github/workflows/_deploy.yaml');
         $validation = '';
         foreach ($workflow['jobs']['deploy']['steps'] as $step) {
             if ('Validate deployment configuration' === ($step['name'] ?? '')) {
@@ -256,14 +252,18 @@ SH);
     {
         $release = Yaml::parseFile($this->root().'/.github/workflows/release.yaml');
         self::assertArrayNotHasKey('deploy-production', $release['jobs']);
+        foreach (['build-preprod', 'build-production', 'deploy-preprod', 'preprod-proof'] as $job) {
+            self::assertSame("vars.ENABLE_DEPLOYMENT == 'true'", $release['jobs'][$job]['if']);
+        }
         self::assertSame(['validate-release', 'build-production', 'deploy-preprod'], $release['jobs']['preprod-proof']['needs']);
         $production = Yaml::parseFile($this->root().'/.github/workflows/production.yaml');
         self::assertSame(['workflow_dispatch'], array_keys($production['on']));
-        self::assertSame("github.ref_type == 'tag'", $production['jobs']['validate-promotion']['if']);
+        self::assertSame("vars.ENABLE_DEPLOYMENT == 'true' && github.ref_type == 'tag'", $production['jobs']['validate-promotion']['if']);
         self::assertNull($production['on']['workflow_dispatch']);
         self::assertSame('${{ github.ref_name }}', $production['jobs']['validate-promotion']['steps'][1]['env']['RELEASE_TAG']);
         self::assertSame('validate-promotion', $production['jobs']['deploy-production']['needs']);
         self::assertSame('${{ needs.validate-promotion.outputs.sha }}', $production['jobs']['deploy-production']['with']['sha']);
+        self::assertSame('prod', $production['jobs']['deploy-production']['with']['compose_environment']);
         self::assertArrayNotHasKey('build-production', $production['jobs']);
     }
 
