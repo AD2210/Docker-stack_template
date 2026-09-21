@@ -7,12 +7,12 @@ services:
         ports:
             - name: smtp
               target: 1025
-              published: "1025"
+              published: ${MAILER_SMTP_PORT:-1025}
               protocol: tcp
-              host_ip: 127.0.0.1
+              host_ip: ${MAILER_HOST_IP:-127.0.0.1}
 
             - name: web
               target: 8025
-              published: "8025"
+              published: ${MAILER_HTTP_PORT:-8025}
               protocol: tcp
-              host_ip: 127.0.0.1
+              host_ip: ${MAILER_HOST_IP:-127.0.0.1}

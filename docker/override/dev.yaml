@@ -34,6 +34,12 @@ services:
         tty: true
 
     database:
+        ports:
+            - name: postgres
+              target: 5432
+              host_ip: ${DATABASE_HOST_IP:-127.0.0.1}
+              published: ${DATABASE_PORT:-5432}
+              protocol: tcp
         environment:
             POSTGRES_DB: ${DATABASE_NAME:?Missing DATABASE_NAME}
             POSTGRES_USER: ${DATABASE_USER:?Missing DATABASE_USER}

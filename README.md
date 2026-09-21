@@ -31,6 +31,11 @@ en développement via `docker/services/mailer.yaml`.
 Les variables Doctrine de `.env` servent aux commandes locales exécutées hors
 Compose, notamment les scripts Composer et les commandes `bin/console`. Les
 conteneurs écrasent ces defaults avec les valeurs Compose et les secrets montés.
+En développement, PostgreSQL est publié sur `127.0.0.1:${DATABASE_PORT:-5432}`
+pour que ces commandes puissent utiliser la même base.
+Les ports locaux `PHP_HTTP_PORT`, `DATABASE_PORT`, `MAILER_SMTP_PORT` et
+`MAILER_HTTP_PORT` peuvent être changés dans `.env` lorsqu'un autre projet utilise
+déjà les valeurs par défaut.
 
 Commandes utiles :
 
