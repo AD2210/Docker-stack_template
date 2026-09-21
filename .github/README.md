@@ -101,6 +101,7 @@ Provisionner hors CI, avant le premier déploiement :
 
 ```text
 APP_PATH/secrets/postgres_password
+APP_PATH/secrets/mercure_jwt_secret
 APP_PATH/config/secrets/preprod/preprod.decrypt.private.php
 ```
 
@@ -111,8 +112,11 @@ lors du provisionnement ; la CI contrôle les fichiers mais ne modifie ni leur
 contenu ni leurs permissions. La base doit déjà utiliser ce même mot de passe.
 
 Les secrets Docker sont des fichiers montés : Compose ne les génère pas. Aucun
-secret PostgreSQL ou Symfony n'est transmis par GitHub. Une absence de fichier
-interrompt le déploiement avant la modification de la stack.
+secret PostgreSQL, Mercure ou Symfony n'est transmis par GitHub. Une absence de
+fichier interrompt le déploiement avant la modification de la stack. La clé
+Mercure est injectée depuis `APP_PATH/secrets/mercure_jwt_secret` pendant le rendu
+runtime ; utiliser une valeur aléatoire d'au moins 32 caractères sûrs, par exemple
+`openssl rand -hex 32`.
 
 ## GHCR et restauration
 
@@ -184,7 +188,8 @@ vide. Un secret défini uniquement dans production ne configure pas preprod.
 | `Host key verification failed`, code 255 | `SSH_KNOWN_HOSTS` contient la sortie complète de `cat known_hosts`, pas `256 SHA256:… (ED25519)`, qui est uniquement l’empreinte. L’hôte et le port correspondent exactement à SSH_HOST et SSH_PORT. |
 | Code 2 avant déploiement | APP_URL doit inclure `https://`, pas seulement le domaine. Le workflow contrôle aussi le port entier 1–65535. |
 | Code 1 avant les opérations de déploiement | Vérifier `make` et `jq` dans le PATH du compte SSH ; les nouveaux scripts indiquent lequel manque. |
-| `Missing or unreadable runtime secret` | Vérifier présence et droits sur APP_PATH/secrets/postgres_password et APP_PATH/config/secrets/ENV/ENV.decrypt.private.php. Ne pas afficher leur contenu dans les logs. |
+| `Missing or unreadable runtime secret` | Vérifier présence et droits sur APP_PATH/secrets/postgres_password, APP_PATH/secrets/mercure_jwt_secret et APP_PATH/config/secrets/ENV/ENV.decrypt.private.php. Ne pas afficher leur contenu dans les logs. |
+| `Invalid runtime secret: mercure_jwt_secret` | Régénérer APP_PATH/secrets/mercure_jwt_secret avec une valeur sans retour ligne et d'au moins 32 caractères, par exemple `openssl rand -hex 32`. |
 
 Sur le serveur, avec le compte utilisé par la CD :
 

@@ -18,6 +18,7 @@
         "symfony/flex": "^2.11",
         "symfony/framework-bundle": "7.4.*",
         "symfony/mailer": "7.4.*",
+        "symfony/mercure-bundle": "^0.5",
         "symfony/messenger": "7.4.*",
         "symfony/runtime": "7.4.*",
         "symfony/scheduler": "7.4.*",
