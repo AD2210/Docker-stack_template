@@ -25,7 +25,8 @@ services:
         environment:
             FRANKENPHP_WORKER_CONFIG: watch
             FRANKENPHP_SITE_CONFIG: hot_reload
-            #MERCURE_EXTRA_DIRECTIVES: demo
+            MERCURE_EXTRA_DIRECTIVES: |
+                cors_origins http://127.0.0.1:${PHP_HTTP_PORT:-8002} http://localhost:${PHP_HTTP_PORT:-8002}
             XDEBUG_MODE: "${XDEBUG_MODE:-develop}"
             APP_ENV: "${APP_ENV:-dev}"
         extra_hosts:
@@ -34,16 +35,13 @@ services:
 
     database:
         environment:
-            POSTGRES_DB: app-dev
-            POSTGRES_USER: dev
+            POSTGRES_DB: ${DATABASE_NAME:?Missing DATABASE_NAME}
+            POSTGRES_USER: ${DATABASE_USER:?Missing DATABASE_USER}
 
     messenger:
         image: ${IMAGES_PREFIX:-}app-php-dev
         env_file:
             - docker/env/dev.env
-        environment:
-            POSTGRES_DB: app-dev
-            POSTGRES_USER: dev
         volumes:
             - ./:/app
 
@@ -51,9 +49,6 @@ services:
         image: ${IMAGES_PREFIX:-}app-php-dev
         env_file:
             - docker/env/dev.env
-        environment:
-            POSTGRES_DB: app-dev
-            POSTGRES_USER: dev
         volumes:
             - ./:/app
 

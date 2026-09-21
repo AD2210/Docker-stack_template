@@ -7,16 +7,22 @@ COMPOSE_PROJECT_BASE ?= myapp
 RELEASE_SERVICE := php
 
 COMPOSE_DEV := $(COMPOSE) \
+--env-file .env \
+--env-file docker/env/dev.env \
 -p $(COMPOSE_PROJECT_BASE)-dev \
 -f compose.yaml \
 -f docker/override/dev.yaml
 
 COMPOSE_PREPROD := $(COMPOSE) \
+--env-file .env \
+--env-file docker/env/preprod.env \
 -p $(COMPOSE_PROJECT_BASE)-preprod \
 -f compose.yaml \
 -f docker/override/preprod.yaml
 
 COMPOSE_PROD := $(COMPOSE) \
+--env-file .env \
+--env-file docker/env/prod.env \
 -p $(COMPOSE_PROJECT_BASE)-prod \
 -f compose.yaml \
 -f docker/override/prod.yaml
@@ -149,11 +155,11 @@ prod-push:
 # CD resolves image names from the same Compose source as build/push.
 .PHONY: deployment-config-json deployment-service deploy-source-config deploy-compose
 deployment-config-json:
-	@$(COMPOSE) -p "$(COMPOSE_PROJECT_BASE)-$(COMPOSE_ENVIRONMENT)" -f compose.yaml -f "docker/override/$(COMPOSE_ENVIRONMENT).yaml" config --format json --no-env-resolution
+	@$(COMPOSE) --env-file .env --env-file "docker/env/$(COMPOSE_ENVIRONMENT).env" -p "$(COMPOSE_PROJECT_BASE)-$(COMPOSE_ENVIRONMENT)" -f compose.yaml -f "docker/override/$(COMPOSE_ENVIRONMENT).yaml" config --format json --no-env-resolution
 deployment-service:
 	@echo $(RELEASE_SERVICE)
 deploy-source-config:
-	@$(COMPOSE) --project-name "$(COMPOSE_PROJECT_NAME)" --env-file "docker/env/$(COMPOSE_ENVIRONMENT).env" --env-file "$(CANDIDATE)" -f compose.yaml -f "docker/override/$(COMPOSE_ENVIRONMENT).yaml" config --format json
+	@$(COMPOSE) --project-name "$(COMPOSE_PROJECT_NAME)" --env-file .env --env-file "docker/env/$(COMPOSE_ENVIRONMENT).env" --env-file "$(CANDIDATE)" -f compose.yaml -f "docker/override/$(COMPOSE_ENVIRONMENT).yaml" config --format json
 deploy-compose: SHELL := /bin/bash
 deploy-compose:
 	@eval "set -- $$COMPOSE_ARGUMENTS"; $(COMPOSE) --env-file "$(CANDIDATE)" -f "$(MANIFEST)" "$$@"

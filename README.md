@@ -1,7 +1,7 @@
 # Docker Stack Template
 
-Template Symfony 7.4 avec FrankenPHP, PostgreSQL, Messenger, Scheduler, Caddy et
-CI/CD GitHub Actions. Il sert de base réutilisable pour démarrer un projet web.
+Template Symfony 7.4 avec FrankenPHP, PostgreSQL, Messenger, Scheduler, Mercure,
+Caddy et CI/CD GitHub Actions. Il sert de base réutilisable pour démarrer un projet web.
 Le dépôt template peut être releasé sans publier ni déployer ; les projets créés
 depuis ce template activent explicitement la CD quand ils sont prêts.
 
@@ -10,6 +10,7 @@ depuis ce template activent explicitement la CD quand ils sont prêts.
 - Stack Docker Compose modulaire par service dans `docker/services/`.
 - Overrides séparés pour `dev`, `preprod` et `prod` dans `docker/override/`.
 - Image PHP unique réutilisée par l'application HTTP, Messenger et Scheduler.
+- Hub Mercure servi par FrankenPHP/Caddy sur le même domaine que l'application.
 - Healthcheck HTTP `/health` utilisé par la CD après rechargement Caddy.
 - Publication d'images GHCR immuables par tag `Vx.y.z`.
 - Promotion production manuelle depuis un tag déjà validé en préproduction.
@@ -27,6 +28,9 @@ make dev-up
 
 L'application écoute par défaut sur `http://127.0.0.1:8002`. Mailpit est inclus
 en développement via `docker/services/mailer.yaml`.
+Les variables Doctrine de `.env` servent aux commandes locales exécutées hors
+Compose, notamment les scripts Composer et les commandes `bin/console`. Les
+conteneurs écrasent ces defaults avec les valeurs Compose et les secrets montés.
 
 Commandes utiles :
 
@@ -61,13 +65,17 @@ serveur consomment la même source de vérité.
 
 - `COMPOSE_PROJECT_BASE` dans `Makefile` pour l'identité Compose locale.
 - `SERVER_NAME`, `DATABASE_NAME` et `DATABASE_USER` dans `docker/env/*.env`.
+- `DEFAULT_URI` et `MERCURE_PUBLIC_URL` dans `docker/env/*.env`.
+- Les defaults Doctrine de `.env` pour les commandes locales exécutées hors Compose.
 - Les domaines dans `caddy/apps/*.caddy`.
 - Le `name` et la `description` de `composer.json`.
-- Les secrets Symfony et PostgreSQL provisionnés hors dépôt.
+- Les secrets Symfony, PostgreSQL et Mercure provisionnés hors dépôt.
 
 Les clés `config/secrets/preprod/*.decrypt.private.php` et
 `config/secrets/prod/*.decrypt.private.php` doivent rester hors Git et être
 créées sur le serveur dans `APP_PATH/config/secrets/<env>/`.
+La clé Mercure de déploiement doit être créée sur le serveur dans
+`APP_PATH/secrets/mercure_jwt_secret`, par exemple avec `openssl rand -hex 32`.
 
 ## Qualité
 
