@@ -12,4 +12,7 @@ jq -e '
         else .services[$service].image = "${PHP_IMAGE:?Missing release image}:${PHP_SHA_CURRENT:?Missing release tag}"
             | del(.services[$service].build)
         end)
+    | .services.php.environment.MERCURE_JWT_SECRET = "${MERCURE_JWT_SECRET:?Missing Mercure JWT secret}"
+    | .services.php.environment.MERCURE_PUBLISHER_JWT_KEY = "${MERCURE_JWT_SECRET:?Missing Mercure JWT secret}"
+    | .services.php.environment.MERCURE_SUBSCRIBER_JWT_KEY = "${MERCURE_JWT_SECRET:?Missing Mercure JWT secret}"
 ' "$1" > "$2"

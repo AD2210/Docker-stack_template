@@ -4,4 +4,3 @@ include:
   - docker/services/database.yaml
   - docker/services/messenger.yaml
   - docker/services/scheduler.yaml
-  #- docker/services/mercure.yaml

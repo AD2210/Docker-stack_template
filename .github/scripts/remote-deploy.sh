@@ -36,9 +36,11 @@ trap cleanup EXIT
 command -v make >/dev/null || { echo "Missing server prerequisite: make (SSH user PATH)" >&2; exit 1; }
 command -v jq >/dev/null || { echo "Missing server prerequisite: jq (SSH user PATH)" >&2; exit 1; }
 # Server provisioning owns secrets; fail before backup or deployment changes.
-for secret in "$APP_PATH/secrets/postgres_password" "$APP_PATH/config/secrets/${COMPOSE_ENVIRONMENT}/${COMPOSE_ENVIRONMENT}.decrypt.private.php"; do
+for secret in "$APP_PATH/secrets/postgres_password" "$APP_PATH/secrets/mercure_jwt_secret" "$APP_PATH/config/secrets/${COMPOSE_ENVIRONMENT}/${COMPOSE_ENVIRONMENT}.decrypt.private.php"; do
     [[ -s "$secret" && -r "$secret" ]] || { echo "Missing or unreadable runtime secret: $secret" >&2; exit 1; }
 done
+MERCURE_JWT_SECRET="$(tr -d '\r\n' < "$APP_PATH/secrets/mercure_jwt_secret")"
+[[ "$MERCURE_JWT_SECRET" =~ ^[A-Za-z0-9._~+/=-]{32,}$ ]] || { echo 'Invalid runtime secret: mercure_jwt_secret must contain at least 32 safe characters' >&2; exit 1; }
 # Never treat a missing manifest on an existing installation as a fresh install.
 if [[ -f "$APP_PATH/compose.runtime.yaml" ]]; then
     server-release init "$APP_PATH" "$RELEASE_SERVICE" "$RELEASE_IMAGE"
@@ -57,7 +59,7 @@ tar -xzf "$ARCHIVE" -C "$APP_PATH"
 CANDIDATE="$(mktemp "$APP_PATH/.candidate.XXXXXX")"
 RESOLVED="$(mktemp "$APP_PATH/.resolved.XXXXXX")"
 MANIFEST="$(mktemp "$APP_PATH/.runtime.XXXXXX.yaml")"
-printf 'PHP_IMAGE=%s\nPHP_SHA_CURRENT=%s\nIMAGE_TAG=%s\n' "$RELEASE_IMAGE" "$RELEASE_TAG" "$RELEASE_TAG" > "$CANDIDATE"
+printf 'PHP_IMAGE=%s\nPHP_SHA_CURRENT=%s\nIMAGE_TAG=%s\nMERCURE_JWT_SECRET=%s\n' "$RELEASE_IMAGE" "$RELEASE_TAG" "$RELEASE_TAG" "$MERCURE_JWT_SECRET" > "$CANDIDATE"
 REGISTRY_CONFIG="$(mktemp -d)"
 export DOCKER_CONFIG="$REGISTRY_CONFIG"
 printf '%s' "$GHCR_TOKEN" | docker login ghcr.io --username "$GHCR_USERNAME" --password-stdin
