@@ -121,8 +121,13 @@ lint:
 	php bin/console lint:yaml config
 	php bin/console lint:twig templates
 
+# Les tests de contrat de la chaine sont en Python et vivaient sans cible :
+# `make test` ne les executait pas, et un script de deploiement pouvait casser
+# sans qu'aucun `make qa` ne le remarque. Les deux langages sont appeles, et
+# l'echec de l'un suffit a faire echouer la cible.
 test:
 	php bin/phpunit
+	python3 -m unittest discover -s tests/Quality -p 'test_*.py'
 
 check-caddy-host:
 	caddy validate \

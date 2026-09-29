@@ -1,0 +1,148 @@
+# Contrat de synchronisation avec le gabarit.
+#
+# Ce fichier est l'unique liste de ce qu'un projet reprend de son gabarit. Il vit
+# ici, dans le gabarit, et non dans `dsn-deploy` : une modification du gabarit
+# doit se répercuter sans qu'un outil exteriorisé change. Un projet lit cette
+# liste, il ne la connaît pas.
+#
+# Une entrée qui pointe un chemin absent du gabarit est une entrée fausse : un
+# contrôle doit la signaler, faute de quoi la dérive n'apparaît que le jour d'un
+# déploiement cassé, sur une machine, à l'heure où personne n'a le temps de la
+# chercher.
+#
+# Ce que la liste ne décrit pas :
+#
+# - le code applicatif, qui appartient au projet et n'est jamais repris ;
+# - `secrets/`, qui n'est pas versionné et dont la création est une étape de
+#   provisionnement, pas de synchronisation ;
+# - les secrets applicatifs `config/secrets/<env>/`, qui sont propres à chaque
+#   projet et ne se copient pas.
+
+version: 1
+
+# `source_ref` est un commit et non une branche. Une branche ferait que la même
+# commande de synchronisation donne deux résultats selon le jour, et qu'un
+# déploiement ne serait jamais reproductible. Le gabarit n'est pas de ce dépôt :
+# la clé de déploiement est celle de l'opérateur, sur son poste.
+source_repo: git@github.com:AD2210/Docker-stack_template.git
+
+# Fichiers repris tels quels à la racine du projet.
+#
+# `required: true` signifie que le projet ne peut pas être déployé sans. Un
+# fichier facultatif peut manquer sans que la synchronisation échoue, ce qui
+# permet d'ajouter un outil au gabarit sans casser les projets déjà scopés.
+files:
+  - path: Dockerfile
+    required: true
+  - path: .dockerignore
+    required: true
+  - path: compose.yaml
+    required: true
+  - path: Caddyfile
+    required: true
+
+  # `deployment-config.sh` appelle `make` : sans Makefile, le job de validation
+  # du déploiement s'arrête avant d'avoir rien fait, avec un message qui ne parle
+  # que d'un nom de projet.
+  - path: Makefile
+    required: true
+
+  # Le fichier d'environnement versionné. Il ne contient aucun secret : le
+  # gabarit s'en assure par une valeur de repli explicite, et les secrets réels
+  # sont lus depuis `secrets/` et le Vault Symfony.
+  - path: .env
+    required: true
+
+  # Fichier d'environnement du développement local, non requis pour déployer.
+  # Il est repris parce que le gabarit en fournit unaccordé au compose, et qu'un
+  # projet qui garderait le sien tournerait un local différent de l'image.
+  - path: .env.dev
+    required: false
+
+# Répertoires repris récursivement, arborescence conservée.
+#
+# Un flux de travail est un fichier, pas une arborescence : le reprendre ici
+# emporterait aussi `ci.yaml`, que la section `excluded` interdit précisément de
+# synchroniser. Les cinq flux sont donc listés en section `files`, et ce
+# classement est vérifié — voir `tests/Quality/test_manifeste.py`.
+directories:
+  - path: caddy
+    required: true
+  - path: docker
+    required: true
+  - path: frankenphp
+    required: true
+  - path: .github/scripts
+    required: true
+
+# Fichiers uniques, à un emplacement quelconque du dépôt.
+#
+# Séparés des fichiers de racine pour que le contrôle n'ait pas à deviner quel
+# est le répertoire de travail : un fluxlisté ici est un fichier, par construction.
+files_nested:
+  - path: .github/workflows/release.yaml
+    required: true
+  - path: .github/workflows/production.yaml
+    required: true
+  - path: .github/workflows/_build.yaml
+    required: true
+  - path: .github/workflows/_deploy.yaml
+    required: true
+  - path: .github/workflows/_quality.yaml
+    required: true
+
+# Chemins du gabarit volontairement non repris, avec le motif.
+#
+# Cette section empêche une dérive silencieuse dans le sens inverse : un fichier
+# oublié ici mais synchronisé quand même se retrouve dans un projet où personne ne
+# l'attend. Les motifs sont vérifiés : une entrée qui ne correspond à rien dans
+# le gabarit est une entrée fausse, et le contrôle la signale au lieu de la
+# laisser passer.
+excluded:
+  - path: vendor
+    reason: dépendances résolues par le projet, jamais versionnées
+  - path: var
+    reason: cache Symfony, propre à chaque projet
+  - path: .idea
+    reason: réglages d'éditeur, propres au poste
+  - path: secrets
+    reason: non versionné par construction, provisionné par environnement
+  - path: config/secrets
+    reason: clés privées du Vault Symfony, propres au projet
+  - path: .github/workflows/ci.yaml
+    reason: la chaîne de déploiement prend le relais, deux CI se contrediraient
+
+  # Le gabarit prévoit le monorepo : `front` et `mobile` sont des emplacements
+  # réservés, vides, et rien ne les inclut encore dans `compose.yaml`. Les
+  # exclure évite qu'un projet reçoive deux fichiers sans contenu, que son
+  # `check-compose` doit ensuite ignorer, et qu'un lecteur prend pour une
+  # deuxième application à Failed.
+  #
+  # `other-service.yaml.tmp` est le même cas sous un autre nom : c'est une
+  # amorce destinée à être renommée en vrai service, pas un service. Un `.tmp`
+  # synchronisé chez un projet donnerait l'illusion d'un service supplémentaire
+  # alors qu'il n'en décrit aucun.
+  - path: docker/services/front
+    reason: emplacement monorepo vide, à remplir quand le service existera
+  - path: docker/services/mobile
+    reason: emplacement monorepo vide, à remplir quand le service existera
+  - path: docker/services/other-service.yaml.tmp
+    reason: amorce à renommer en service réel, pas un service
+
+# Fichiers du projet que la synchronisation ne doit jamais écraser.
+#
+# C'est l'exact opposé de la section précédente, et la confusion des deux est
+# un défaut de synchronisation : ici le gabarit ne possède pas le fichier, et
+# l'écraser détruirait du travail propre au projet. Un squelette Symfony livré
+# par `symfony new` arrive avec ses propres flux ; ils ne sont pas supprimés ici,
+# seulement protégés, parce que leur suppression est une décision du projet et
+# non une conséquence d'un outil.
+preserve:
+  - path: .github/workflows/tests.yaml
+    reason: tests du projet, absents du gabarit
+  - path: .github/workflows/lint.yaml
+    reason: analyses statiques du projet, absentes du gabarit
+  - path: .github/workflows/end_to_end_tests.yaml
+    reason: tests de bout en bout du projet, absents du gabarit
+  - path: .env.local
+    reason: jamais versionné, et le gabarit n'en fournit pas
