@@ -85,6 +85,14 @@ directories:
     required: true
   - path: frankenphp
     required: true
+
+  # `runtime.json` décrit les services qui portent l'image de la release et les
+  # variables que le déploiement écrase. Le répertoire le reprend tel quel, donc le
+  # fichier arrive chez chaque projet — mais les noms qu'il contient appartiennent au
+  # projet, pas au gabarit. Un projet qui ajoute un service de traitement, en retire
+  # un, ou n'utilise pas Mercure édite ce fichier et aucun script. C'est le
+  # remplacement d'une liste de noms figée dans `render-runtime.sh`, où une
+  # incohérence ne se voyait pas : un service non déclaré gardait son image, sans erreur.
   - path: .github/scripts
     required: true
 

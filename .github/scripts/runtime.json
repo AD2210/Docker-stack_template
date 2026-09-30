@@ -1,0 +1,10 @@
+{
+  "services": ["php", "messenger", "scheduler"],
+  "environment": {
+    "php": {
+      "MERCURE_JWT_SECRET": "MERCURE_JWT_SECRET",
+      "MERCURE_PUBLISHER_JWT_KEY": "MERCURE_JWT_SECRET",
+      "MERCURE_SUBSCRIBER_JWT_KEY": "MERCURE_JWT_SECRET"
+    }
+  }
+}

@@ -74,7 +74,15 @@ serveur consomment la même source de vérité.
 - Les defaults Doctrine de `.env` pour les commandes locales exécutées hors Compose.
 - Les domaines dans `caddy/apps/*.caddy`.
 - Le `name` et la `description` de `composer.json`.
+- Les services de déploiement dans `.github/scripts/runtime.json`.
 - Les secrets Symfony, PostgreSQL et Mercure provisionnés hors dépôt.
+
+`runtime.json` déclare quels services portent l'image de la release, et quelles
+variables d'environnement le déploiement doit écraser. Le fichier est repris par
+le gabarit, mais il appartient au projet : ajouter un service de traitement, en
+retirer un, ou ne pas utiliser Mercure, se font ici, sans toucher un script du
+gabarit. Un service absent de la déclaration conserve son image, et le rendu
+refuse un service oublié dès qu'il partage l'image d'un service déclaré.
 
 Les clés `config/secrets/preprod/*.decrypt.private.php` et
 `config/secrets/prod/*.decrypt.private.php` doivent rester hors Git et être

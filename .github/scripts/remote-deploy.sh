@@ -66,7 +66,7 @@ printf '%s' "$GHCR_TOKEN" | docker login ghcr.io --username "$GHCR_USERNAME" --p
 cd "$APP_PATH"
 export CANDIDATE MANIFEST
 make --no-print-directory -s deploy-source-config > "$RESOLVED"
-bash "$APP_PATH/deploy/render-runtime.sh" "$RESOLVED" "$MANIFEST"
+bash "$APP_PATH/deploy/render-runtime.sh" "$RESOLVED" "$MANIFEST" "$APP_PATH/deploy/runtime.json"
 compose() { COMPOSE_ARGUMENTS="$(printf '%q ' "$@")" make --no-print-directory -s deploy-compose; }
 compose config --quiet
 compose pull

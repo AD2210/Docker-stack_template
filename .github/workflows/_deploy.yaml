@@ -100,6 +100,10 @@ jobs:
           umask 077
 
           cp .github/scripts/render-runtime.sh "${BUNDLE}/deploy/"
+          # The project declares which services run the release image, and which
+          # variables the deployment overwrites. It is read on the server, so it
+          # travels with the renderer rather than being read from the repository.
+          cp .github/scripts/runtime.json "${BUNDLE}/deploy/"
           CADDY_APP=app
           if [[ "$COMPOSE_ENVIRONMENT" = preprod ]]; then CADDY_APP=preprod; fi
           cp "caddy/apps/${CADDY_APP}.caddy" "${BUNDLE}/caddy/apps/application.caddy"

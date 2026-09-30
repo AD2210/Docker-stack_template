@@ -62,7 +62,7 @@ if [[ "$(basename "$0")" == docker && "$1" == login ]]; then
     printf 'fake-token' > "$DOCKER_CONFIG/config.json"
 fi
 if [[ "$(basename "$0")" == docker && "$*" == *'config --format json'* ]]; then
-    printf '%s\n' '{"name":"prospection-quality-test","services":{"php":{"image":"old"},"messenger":{"image":"old"},"scheduler":{"image":"old"}}}'
+    printf '%s\n' '{"name":"prospection-quality-test","services":{"php":{"image":"old","environment":{"MERCURE_JWT_SECRET":"placeholder","MERCURE_PUBLISHER_JWT_KEY":"placeholder","MERCURE_SUBSCRIBER_JWT_KEY":"placeholder"}},"messenger":{"image":"old"},"scheduler":{"image":"old"}}}'
 fi
 if [[ "$(basename "$0")" == "${FAIL_COMMAND:-none}" ]]; then exit 9; fi
 if [[ -n "${FAIL_MATCH:-}" && "$*" == *"$FAIL_MATCH"* ]]; then exit 9; fi
@@ -77,6 +77,7 @@ SH);
         file_put_contents($this->temporary.'/app/compose.runtime.yaml', '{}');
         mkdir($this->temporary.'/app/deploy');
         copy($this->root().'/.github/scripts/render-runtime.sh', $this->temporary.'/app/deploy/render-runtime.sh');
+        copy($this->root().'/.github/scripts/runtime.json', $this->temporary.'/app/deploy/runtime.json');
         $env = [
             'APP_PATH' => $this->temporary.'/app', 'COMPOSE_PROJECT_NAME' => 'prospection-quality-test',
             'COMPOSE_ENVIRONMENT' => 'preprod', 'RELEASE_TAG' => 'V0.1.0', 'RELEASE_SERVICE' => 'php',
@@ -120,9 +121,9 @@ SH);
         $manifest = json_decode((string) file_get_contents($this->temporary.'/app/compose.runtime.yaml'), true, flags: JSON_THROW_ON_ERROR);
         self::assertSame('prospection-quality-test', $manifest['name']);
         self::assertStringContainsString('PHP_SHA_CURRENT', $manifest['services']['php']['image']);
-        self::assertSame('${MERCURE_JWT_SECRET:?Missing Mercure JWT secret}', $manifest['services']['php']['environment']['MERCURE_JWT_SECRET']);
-        self::assertSame('${MERCURE_JWT_SECRET:?Missing Mercure JWT secret}', $manifest['services']['php']['environment']['MERCURE_PUBLISHER_JWT_KEY']);
-        self::assertSame('${MERCURE_JWT_SECRET:?Missing Mercure JWT secret}', $manifest['services']['php']['environment']['MERCURE_SUBSCRIBER_JWT_KEY']);
+        self::assertSame('${MERCURE_JWT_SECRET:?Missing runtime secret MERCURE_JWT_SECRET}', $manifest['services']['php']['environment']['MERCURE_JWT_SECRET']);
+        self::assertSame('${MERCURE_JWT_SECRET:?Missing runtime secret MERCURE_JWT_SECRET}', $manifest['services']['php']['environment']['MERCURE_PUBLISHER_JWT_KEY']);
+        self::assertSame('${MERCURE_JWT_SECRET:?Missing runtime secret MERCURE_JWT_SECRET}', $manifest['services']['php']['environment']['MERCURE_SUBSCRIBER_JWT_KEY']);
         self::assertStringNotContainsString(str_repeat('a', 32), (string) file_get_contents($this->temporary.'/app/compose.runtime.yaml'));
         unlink($this->temporary.'/app/compose.runtime.yaml');
         file_put_contents($this->temporary.'/calls', '');
@@ -239,10 +240,12 @@ SH);
     {
         $input = $this->temporary.'/resolved.json';
         $output = $this->temporary.'/runtime.yaml';
+        $declaration = $this->temporary.'/runtime.json';
         $services = array_fill_keys(['php', 'messenger', 'scheduler'], ['image' => 'pinned:V1.0.0', 'build' => ['context' => '/app']]);
         $services['database'] = ['image' => 'postgres:16', 'environment' => ['POSTGRES_DB' => 'dedicated']];
         file_put_contents($input, json_encode(['name' => 'prospection-preprod', 'services' => $services], JSON_THROW_ON_ERROR));
-        self::assertTrue($this->runCommand(['bash', $this->root().'/.github/scripts/render-runtime.sh', $input, $output])->isSuccessful());
+        file_put_contents($declaration, json_encode(['services' => ['php', 'messenger', 'scheduler']], JSON_THROW_ON_ERROR));
+        self::assertTrue($this->runCommand(['bash', $this->root().'/.github/scripts/render-runtime.sh', $input, $output, $declaration])->isSuccessful());
         $manifest = json_decode((string) file_get_contents($output), true, flags: JSON_THROW_ON_ERROR);
         self::assertSame('prospection-preprod', $manifest['name']);
         foreach (['php', 'messenger', 'scheduler'] as $service) {
@@ -277,10 +280,17 @@ SH);
     {
         $input = $this->temporary.'/invalid.json';
         $output = $this->temporary.'/runtime.yaml';
+        $declaration = $this->temporary.'/runtime.json';
+        $valid = json_encode(['services' => ['php', 'messenger', 'scheduler']], JSON_THROW_ON_ERROR);
         foreach (['{', '{}', '{"name":"app","services":{"php":{}}}'] as $json) {
             file_put_contents($input, $json);
-            self::assertFalse($this->runCommand(['bash', $this->root().'/.github/scripts/render-runtime.sh', $input, $output])->isSuccessful());
+            file_put_contents($declaration, $valid);
+            self::assertFalse($this->runCommand(['bash', $this->root().'/.github/scripts/render-runtime.sh', $input, $output, $declaration])->isSuccessful());
         }
+        // A valid Compose file with no declaration is refused too: the renderer has
+        // no service list of its own, and a default would be a guess.
+        file_put_contents($input, '{"name":"app","services":{"php":{}}}');
+        self::assertFalse($this->runCommand(['bash', $this->root().'/.github/scripts/render-runtime.sh', $input, $output, $this->temporary.'/absent.json'])->isSuccessful());
     }
 
     private function root(): string
