@@ -76,7 +76,11 @@ compose up --detach --wait database
 # Failures after this point need reconciliation; no blind rollback of schema/data.
 compose stop messenger scheduler
 compose up --detach --wait --remove-orphans
-sudo -n bash "$APP_PATH/deploy/update-caddy.sh" "$COMPOSE_PROJECT_NAME" "$APP_PATH/caddy/apps/application.caddy"
+# The Caddy endpoint is published by a root-owned script that takes only the
+# project name and derives both source and target. It refuses a project absent
+# from /etc/server-setup/deploy-projects, so a new environment needs a
+# root-owned one-line addition, not a change to this repository.
+sudo -n /usr/local/lib/server-setup/update-caddy.sh "$COMPOSE_PROJECT_NAME"
 curl --fail-with-body --show-error --silent --connect-timeout 10 --max-time 20 --retry 5 --retry-delay 5 --retry-max-time 120 --retry-all-errors "${APP_URL%/}/health"
 mv "$MANIFEST" "$APP_PATH/compose.runtime.yaml"
 MANIFEST=''

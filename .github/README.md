@@ -163,9 +163,23 @@ sous verrou global, valide la configuration complète puis recharge Caddy avant
 le contrôle HTTP. En cas d'échec, elle restaure le fichier précédent et tente son
 rechargement. Aucune unité systemd ne change, donc aucun daemon-reload.
 
-Le compte de déploiement doit pouvoir exécuter sans interaction `sudo -n bash
-APP_PATH/deploy/update-caddy.sh ...` (le compte administrateur Server-setup possède
-ce droit). Caddy et flock doivent être installés. Les fichiers d'app déjà copiés
+Le compte de déploiement doit pouvoir exécuter sans interaction
+`sudo -n /usr/local/lib/server-setup/update-caddy.sh <projet>` (le compte
+Server-setup lui accorde ce droit par la règle `deploy` de
+`/etc/sudoers.d/server-deploy`). Le script est en `root:root`, ne reçoit qu'un
+nom de projet et en dérive la source (`/srv/apps/<projet>/caddy/apps/application.caddy`)
+comme la cible (`/etc/caddy/apps/<projet>.caddy`).
+
+Un projet absent de `/etc/server-setup/deploy-projects` est refusé. C'est
+voulu : sans cette liste en root, un nom libre permettrait de faire servir par
+Caddy un répertoire créé par le compte lui-même. Ajouter un environnement se
+fait donc côté serveur, une fois, avec le compte d'administration :
+
+```bash
+printf '%s\n' 'mon-projet-preprod' | sudo tee -a /etc/server-setup/deploy-projects
+```
+
+Caddy et flock doivent être installés. Les fichiers d'app déjà copiés
 manuellement doivent être regroupés sous ce même nom pour éviter deux définitions
 du même domaine. Renseigner les domaines dans les fichiers Caddy avant publication.
 

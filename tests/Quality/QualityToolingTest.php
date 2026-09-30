@@ -108,7 +108,7 @@ SH);
         }
         self::assertStringContainsString('/health', $calls);
         self::assertStringContainsString('is_readable($path)', $calls);
-        self::assertStringContainsString('sudo -n bash '.$this->temporary.'/app/deploy/update-caddy.sh', $calls);
+        self::assertStringContainsString('sudo -n /usr/local/lib/server-setup/update-caddy.sh prospection-quality-test', $calls);
         self::assertSame('test-db-only', file_get_contents($this->temporary.'/app/secrets/postgres_password'));
         self::assertSame(str_repeat('a', 32), file_get_contents($this->temporary.'/app/secrets/mercure_jwt_secret'));
         self::assertSame('test-key-only', file_get_contents($this->temporary.'/app/config/secrets/preprod/preprod.decrypt.private.php'));

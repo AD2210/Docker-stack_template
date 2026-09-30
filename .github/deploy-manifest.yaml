@@ -17,6 +17,19 @@
 #   provisionnement, pas de synchronisation ;
 # - les secrets applicatifs `config/secrets/<env>/`, qui sont propres à chaque
 #   projet et ne se copient pas.
+#
+# Ce qu'aucune section ne décrit non plus : un fichier que le gabarit a fourni,
+# puis ne fournit plus. La synchronisation recopie ce qui existe, elle ne retire
+# rien, et aucune section ne peut dire « ce chemin doit disparaître du projet »
+# : `excluded` exige un chemin présent dans le gabarit, `preserve` un chemin
+# absent. Le retrait est donc une opération manuelle, à faire une fois par
+# projet déjà synchronisé.
+#
+# Le premier cas est `.github/scripts/update-caddy.sh`, supprimé le 30/09/2026.
+# Sa logique est désormais dans un script en `root:root` installé par le
+# provisionnement, donc hors de portée d'une synchronisation de dépôt. Un projet
+# déjà synchronisé garde le fichier : il n'est plus appelé nulle part, et rien ne
+# l'exécute, mais il ferait croire à une règle sudo que la chaîne n'exerce pas.
 
 version: 1
 
