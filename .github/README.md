@@ -206,3 +206,10 @@ Après correction d’un paramètre ou prérequis serveur, relancer uniquement l
 builds réussis : les images ont déjà été publiées et leurs tags sont immuables.
 Une modification du code des workflows exige un nouveau tag PATCH ; relancer un
 ancien tag reprend ses anciens scripts et leurs anciens messages d’erreur.
+
+## Arrêt optionnel de la préproduction
+
+La variable de dépôt `STOP_PREPROD_AFTER_PROMOTION=true` arrête le site et les
+workers préprod après une promotion réussie, en conservant PostgreSQL actif pour
+les sauvegardes. L’option est désactivée par défaut. Voir la
+[procédure et les garde-fous](../docs/preprod-shutdown.md).

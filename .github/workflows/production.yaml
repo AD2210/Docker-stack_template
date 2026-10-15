@@ -47,3 +47,54 @@ jobs:
       environment: production
       compose_environment: prod
     secrets: inherit
+
+  stop-preprod:
+    name: Stop preproduction after promotion
+    needs: [validate-promotion, deploy-production]
+    if: vars.STOP_PREPROD_AFTER_PROMOTION == 'true'
+    runs-on: ubuntu-latest
+    environment: preprod
+    permissions:
+      contents: read
+    concurrency:
+      group: deploy-preprod
+      cancel-in-progress: false
+    env:
+      APP_PATH: ${{ vars.APP_PATH }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ needs.validate-promotion.outputs.sha }}
+          persist-credentials: false
+      - name: Resolve preproduction project
+        env:
+          COMPOSE_ENVIRONMENT: preprod
+          IMAGE_TAG: ${{ needs.validate-promotion.outputs.tag }}
+        run: bash .github/scripts/deployment-config.sh >> "$GITHUB_ENV"
+      - name: Stop the promoted preproduction release
+        shell: bash
+        env:
+          SSH_HOST: ${{ secrets.SSH_HOST }}
+          SSH_PORT: ${{ secrets.SSH_PORT }}
+          SSH_USER: ${{ secrets.SSH_USER }}
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+          SSH_KNOWN_HOSTS: ${{ secrets.SSH_KNOWN_HOSTS }}
+          RELEASE_TAG: ${{ needs.validate-promotion.outputs.tag }}
+        run: |
+          set -euo pipefail
+          : "${SSH_HOST:?Missing preprod secret SSH_HOST}"
+          [[ "$SSH_PORT" =~ ^[1-9][0-9]{0,4}$ ]] && (( SSH_PORT <= 65535 )) || { echo 'Invalid preprod SSH_PORT' >&2; exit 1; }
+          : "${SSH_USER:?Missing preprod secret SSH_USER}"
+          : "${SSH_PRIVATE_KEY:?Missing preprod secret SSH_PRIVATE_KEY}"
+          : "${SSH_KNOWN_HOSTS:?Missing preprod secret SSH_KNOWN_HOSTS}"
+          : "${APP_PATH:?Missing preprod variable APP_PATH}"
+          install -d -m 700 "${HOME}/.ssh"
+          printf '%s\n' "$SSH_PRIVATE_KEY" > "${HOME}/.ssh/id_ed25519"
+          chmod 600 "${HOME}/.ssh/id_ed25519"
+          printf '%s\n' "$SSH_KNOWN_HOSTS" > "${HOME}/.ssh/known_hosts"
+          chmod 600 "${HOME}/.ssh/known_hosts"
+          {
+            printf 'export APP_PATH=%q COMPOSE_PROJECT_NAME=%q RELEASE_IMAGE=%q RELEASE_TAG=%q\n' \
+              "$APP_PATH" "$COMPOSE_PROJECT_NAME" "$RELEASE_IMAGE" "$RELEASE_TAG"
+            cat .github/scripts/stop-preprod.sh
+          } | ssh -p "$SSH_PORT" -o BatchMode=yes -o StrictHostKeyChecking=yes -o ConnectTimeout=10 "${SSH_USER}@${SSH_HOST}" 'bash -s'
