@@ -168,3 +168,9 @@ deploy-compose:
 test-promotion:
 	python3 -m unittest discover -s tests/Quality -p "test_*.py"
 test: test-promotion
+
+.PHONY: test-shutdown
+test-shutdown:
+	bash tests/Quality/test_stop_preprod.sh
+
+test: test-shutdown

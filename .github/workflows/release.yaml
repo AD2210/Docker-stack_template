@@ -111,7 +111,7 @@ jobs:
           RELEASE_SHA: ${{ needs.validate-release.outputs.sha }}
         run: printf '%s %s\n' "$RELEASE_TAG" "$RELEASE_SHA" > preprod-validation.txt
       - name: Store validation receipt
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: preprod-v2-${{ needs.validate-release.outputs.tag }}-${{ needs.validate-release.outputs.sha }}
           path: preprod-validation.txt
