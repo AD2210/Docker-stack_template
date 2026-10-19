@@ -44,7 +44,7 @@ jobs:
     with:
       tag: ${{ needs.validate-promotion.outputs.tag }}
       sha: ${{ needs.validate-promotion.outputs.sha }}
-      environment: production
+      environment: prod
       compose_environment: prod
     secrets: inherit
 

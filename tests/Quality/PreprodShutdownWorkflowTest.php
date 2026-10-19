@@ -7,6 +7,25 @@ use Symfony\Component\Yaml\Yaml;
 
 final class PreprodShutdownWorkflowTest extends TestCase
 {
+    public function testDeploymentEnvironmentIdentifiersAreAlwaysPreprodOrProd(): void
+    {
+        $root = dirname(__DIR__, 2);
+        $promotion = Yaml::parseFile($root.'/.github/workflows/production.yaml');
+        self::assertSame('prod', $promotion['jobs']['deploy-production']['with']['environment']);
+        self::assertSame('prod', $promotion['jobs']['deploy-production']['with']['compose_environment']);
+        $release = Yaml::parseFile($root.'/.github/workflows/release.yaml');
+        self::assertSame('prod', $release['jobs']['build-production']['with']['environment']);
+        foreach ([$promotion, $release] as $workflow) {
+            foreach ($workflow['jobs'] as $job) {
+                if (!isset($job['with']['compose_environment'])) {
+                    continue;
+                }
+                self::assertContains($job['with']['environment'], ['preprod', 'prod']);
+                self::assertSame($job['with']['environment'], $job['with']['compose_environment']);
+            }
+        }
+    }
+
     public function testShutdownIsOptionalAndRunsAfterSuccessfulProductionDeployment(): void
     {
         $root = dirname(__DIR__, 2);

@@ -21,7 +21,7 @@ Les anciennes releases sans preuve ne sont pas promouvables par ce parcours.
 Ne pas relancer les builds d'un tag déjà publié : préparer une nouvelle version PATCH.
 
 Le workflow doit être présent sur main avant utilisation. Dans les restrictions
-de l'environnement production, autoriser les tags `V*.*.*` : la référence de
+de l'environnement `prod`, autoriser les tags `V*.*.*` : la référence de
 l'exécution manuelle est désormais le tag sélectionné.
 La préproduction doit autoriser les tags V*.*.* et main pour une relance manuelle.
 Aucun Required reviewer payant n'est requis ; protéger les modifications des workflows
@@ -36,7 +36,9 @@ Créer d'abord cette variable au niveau du dépôt :
 | --- | --- | --- |
 | Variable | `ENABLE_DEPLOYMENT` | `true` uniquement pour les projets réellement déployables |
 
-Créer les environnements `preprod` et `production`. Chaque environnement contient uniquement :
+Les identifiants d’environnement sont **`preprod`** et **`prod`**, aussi bien dans GitHub Actions que dans Compose et Symfony. Le nom `production` ne doit pas être utilisé comme identifiant.
+
+Créer les environnements `preprod` et `prod`. Chaque environnement contient uniquement :
 
 | Type | Nom | Valeur |
 | --- | --- | --- |
@@ -179,9 +181,9 @@ le déploiement, y compris une erreur provenant d'une autre cible du serveur.
 
 Les noms sont sensibles aux fautes de frappe. Dans Settings → Environments →
 **preprod**, créer les cinq entrées SSH dans **Environment secrets**, pas dans
-Environment variables. Répéter la configuration pour **production**.
+Environment variables. Répéter la configuration pour **prod**.
 `SSH_KNOWN_HOSTS` se termine par un S ; un secret absent est transmis comme chaîne
-vide. Un secret défini uniquement dans production ne configure pas preprod.
+vide. Un secret défini uniquement dans `prod` ne configure pas preprod.
 
 | Symptôme | Vérification |
 | --- | --- |
