@@ -22,3 +22,5 @@ Les scripts de build et déploiement utilisent Bash et jq pour les données JSON
 Sur le serveur, vérifier `command -v jq` avant la prochaine release ; sur Debian ou
 Ubuntu, si nécessaire : `sudo apt-get install jq`. Python n'est plus nécessaire au
 déploiement ; certains tests locaux/CI l'utilisent encore.
+
+Les environnements GitHub doivent être nommés `preprod` et `prod`, conformément à Compose et Symfony. Les variables et secrets de production sont à configurer dans `prod`. « Promote production » est le libellé du workflow, pas le nom de son environnement.

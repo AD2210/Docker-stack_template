@@ -12,7 +12,7 @@ on:
         required: true
         type: string
       environment:
-        description: "GitHub Environment name: preprod or production"
+        description: "GitHub Environment name: preprod or prod"
         required: true
         type: string
       compose_environment:
