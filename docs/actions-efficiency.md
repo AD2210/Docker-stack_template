@@ -7,25 +7,25 @@ Le fonctionnement normal est Git Flow, avec fusion locale puis poussée des bran
 - `feature/*`, `bugfix/*`, `hotfix/*`, `support/*`, `release/*` et `develop` : un contrôle rapide au push, avec annulation de l’exécution précédente de la même branche.
 - Documentation seule (`docs/**`, README, changelog, licence) : aucun job automatique. Un commit de notes de version ne relance pas les tests.
 - `main` : pas de deuxième CI automatique après une fusion. Le tag reste le point de validation complète du commit stable.
-- Tag stable `Vx.y.z` : contrôles complets obligatoires avant construction et livraison en préproduction. Pour le site, cela inclut les E2E et les 26 audits Lighthouse strictement supérieurs à 95.
+- Tag stable `Vx.y.z` : contrôles complets obligatoires avant construction et livraison en préproduction. Les E2E et audits de navigateur d’un projet doivent être raccordés au profil `full` lorsqu’ils sont disponibles.
 - Production : promotion manuelle du même tag avec sa preuve de préproduction ; aucune reconstruction ni nouvelle validation complète.
 - Le lancement manuel de CI permet de demander `full_validation` pour vérifier un candidat avant de poser un tag.
 
-Les contrôles rapides regroupent analyse et tests dans un seul job, avec une installation Composer commune. Compose et Caddy sont vérifiés seulement si l’infrastructure a changé ou pour une validation complète. Une base Git inconnue active ces contrôles par précaution. Les contrôles de navigateur n’ont plus de construction Docker jetable : les images réellement livrées sont construites par `_build.yaml`.
+Les contrôles rapides regroupent analyse et tests dans un seul job, avec une installation Composer commune. Compose et Caddy sont vérifiés seulement si l’infrastructure a changé ou pour une validation complète. Une base Git inconnue active ces contrôles par précaution. La CI rapide ne construit pas d’image Docker jetable : les images réellement livrées sont construites par `_build.yaml`.
 
 ## Caches et artefacts
 
-Composer et npm conservent leurs téléchargements ; PHPStan dispose d’un cache limité à `var/phpstan`, sans base de données ni secret applicatif. Chaque installation reste déterminée par son fichier de verrouillage.
+Composer conserve ses téléchargements ; PHPStan dispose d’un cache limité à `var/phpstan`, sans base de données ni secret applicatif. Chaque installation reste déterminée par son fichier de verrouillage. Un projet qui ajoute des étapes Node peut activer le cache npm de `actions/setup-node` et conserver une installation avec `npm ci`.
 
 La release active `docker/override/build-cache.yaml` via `BUILD_CACHE_REF`. BuildKit importe et exporte un cache GHCR distinct des tags de release, par dépôt et environnement (`…-build-cache:preprod` et `…-build-cache:prod`). Le premier build remplit le cache ; les suivants peuvent réutiliser les couches. Le cache local de téléchargement Composer est également activé pendant la construction.
 
 Le cache est absent des manifestes de déploiement et reste facultatif en local. Les images préproduction et production restent distinctes : le Dockerfile embarque actuellement un `APP_ENV` différent. Les fusionner demanderait une évolution séparée de la configuration de l’image.
 
-Les rapports navigateur sont conservés sept jours ; les petites preuves de promotion gardent leur rétention de 90 jours. Les jobs ont un délai maximal explicite. Une erreur de qualité empêche les builds, et une préproduction non validée empêche la promotion.
+Les petites preuves de promotion gardent leur rétention de 90 jours. Les rapports navigateur ajoutés par un projet peuvent avoir une rétention courte, par exemple sept jours. Les jobs ont un délai maximal explicite. Une erreur de qualité empêche les builds, et une préproduction non validée empêche la promotion.
 
 ## Runner sur une VM du poste
 
-Profil initial proposé : Ubuntu Server 24.04 LTS, 4 vCPU, 8 Gio de RAM, disque de 120 Gio, réseau NAT et Docker à l’intérieur de la VM. Un seul agent, dédié au site pour commencer, évite les collisions de ports entre les services des jobs. La VM doit être allumée pour exécuter les tâches ; les jobs restent en attente lorsqu’elle est arrêtée.
+Profil initial proposé : Ubuntu Server 24.04 LTS, 4 vCPU, 8 Gio de RAM, disque de 120 Gio, réseau NAT et Docker à l’intérieur de la VM. Un seul agent, dédié au dépôt pour commencer, évite les collisions de ports entre les services des jobs. La VM doit être allumée pour exécuter les tâches ; les jobs restent en attente lorsqu’elle est arrêtée.
 
 Le générateur prépare des fichiers cloud-init sans créer de VM ni installer d’agent sur le poste :
 
@@ -58,6 +58,6 @@ Un runner de dépôt personnel est rattaché à ce dépôt. Pour partager un seu
 
 Les changements sont testables sans lancer de workflow : tests de sélection des fichiers, résolution Compose avec/sans cache, exécution isolée de la préparation SSH et génération cloud-init, puis contrôle des définitions avec actionlint. L’efficacité du cache distant et le gain réel seront mesurés au premier build autorisé.
 
-Une modification de workflow ne change pas les tags existants. V1.1.2 reste immuable ; ces optimisations doivent être incluses dans le prochain candidat si cette livraison doit utiliser le runner configurable. Ne pas déplacer le tag pour contourner l’échec précédent.
+Une modification de workflow ne change pas les tags existants. Pour qu’une release utilise le runner configurable, son tag doit inclure ces workflows. Conserver les anciens tags immuables et préparer une nouvelle version plutôt que de déplacer un tag déjà publié.
 
 Sources : [cache de registre Docker](https://docs.docker.com/build/cache/backends/registry/), [installation Docker Ubuntu](https://docs.docker.com/engine/install/ubuntu/), [runners auto-hébergés](https://docs.github.com/en/actions/concepts/runners/self-hosted-runners), [ajout d’un runner](https://docs.github.com/en/actions/how-tos/manage-runners/self-hosted-runners/add-runners).
