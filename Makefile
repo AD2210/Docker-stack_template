@@ -1,3 +1,7 @@
+# Registry cache is optional locally and enabled by the release workflow.
+BUILD_CACHE_COMPOSE = $(if $(strip $(BUILD_CACHE_REF)),-f docker/override/build-cache.yaml)
+BUILD_BUILDER = $(if $(strip $(BUILDX_BUILDER)),--builder $(BUILDX_BUILDER))
+
 # ==============================================================================
 # Docker Compose
 # ==============================================================================
@@ -144,11 +148,11 @@ qa: precommit lint test
 # Build and deployment use the same modular Compose image definitions.
 .PHONY: preprod-build preprod-push prod-build prod-push
 preprod-build:
-	$(COMPOSE_PREPROD) build --pull $(RELEASE_SERVICE)
+	$(COMPOSE_PREPROD) $(BUILD_CACHE_COMPOSE) build $(BUILD_BUILDER) --pull $(RELEASE_SERVICE)
 preprod-push:
 	$(COMPOSE_PREPROD) push $(RELEASE_SERVICE)
 prod-build:
-	$(COMPOSE_PROD) build --pull $(RELEASE_SERVICE)
+	$(COMPOSE_PROD) $(BUILD_CACHE_COMPOSE) build $(BUILD_BUILDER) --pull $(RELEASE_SERVICE)
 prod-push:
 	$(COMPOSE_PROD) push $(RELEASE_SERVICE)
 
