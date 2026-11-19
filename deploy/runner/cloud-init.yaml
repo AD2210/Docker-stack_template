@@ -1,0 +1,39 @@
+#cloud-config
+# Render with tools/prepare_runner_vm.py before attaching to a fresh Ubuntu 24.04 VM.
+package_update: true
+packages:
+  - ca-certificates
+  - curl
+  - git
+  - gh
+  - jq
+  - make
+  - python3
+  - python3-venv
+  - unzip
+  - qemu-guest-agent
+groups:
+  - docker
+users:
+  - name: gha
+    shell: /bin/bash
+    groups: [sudo, docker]
+    sudo: ['ALL=(ALL) NOPASSWD:ALL']
+    lock_passwd: true
+    ssh_authorized_keys:
+      - __SSH_PUBLIC_KEY__
+ssh_pwauth: false
+runcmd:
+  - [install, -m, '0755', -d, /etc/apt/keyrings]
+  - [curl, -fsSL, https://download.docker.com/linux/ubuntu/gpg, -o, /etc/apt/keyrings/docker.asc]
+  - [chmod, a+r, /etc/apt/keyrings/docker.asc]
+  - - bash
+    - -ceu
+    - |
+      . /etc/os-release
+      test "$ID" = ubuntu
+      printf 'Types: deb\nURIs: https://download.docker.com/linux/ubuntu\nSuites: %s\nComponents: stable\nArchitectures: %s\nSigned-By: /etc/apt/keyrings/docker.asc\n' \
+        "${UBUNTU_CODENAME:-$VERSION_CODENAME}" "$(dpkg --print-architecture)" > /etc/apt/sources.list.d/docker.sources
+      apt-get update
+      DEBIAN_FRONTEND=noninteractive apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+      systemctl enable --now docker

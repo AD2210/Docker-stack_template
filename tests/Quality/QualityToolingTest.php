@@ -89,6 +89,17 @@ SH);
             self::assertNotSame(0, $process->getExitCode(), $process->getErrorOutput());
             self::assertStringNotContainsString('server-release record', (string) file_get_contents($this->temporary.'/calls'));
         }
+        $recoveries = glob($this->temporary.'/app/.deployment-recovery.V0.1.0.*');
+        self::assertCount(1, $recoveries);
+        self::assertSame(0700, fileperms($recoveries[0]) & 0777);
+        foreach (['compose.runtime.yaml', 'release.env'] as $file) {
+            self::assertFileExists($recoveries[0].'/'.$file);
+            self::assertSame(0600, fileperms($recoveries[0].'/'.$file) & 0777);
+        }
+        self::assertStringContainsString('PHP_SHA_CURRENT=V0.1.0', (string) file_get_contents($recoveries[0].'/release.env'));
+        self::assertStringNotContainsString('test-only', (string) file_get_contents($recoveries[0].'/release.env'));
+        self::assertStringContainsString('private recovery files retained', $process->getErrorOutput());
+        self::assertSame(9, $process->getExitCode());
         file_put_contents($this->temporary.'/calls', '');
         $process = $this->runCommand(['bash', $this->root().'/.github/scripts/remote-deploy.sh'], $env + ['FAIL_MATCH' => '--entrypoint php --user 33']);
         self::assertNotSame(0, $process->getExitCode(), $process->getErrorOutput());
@@ -152,7 +163,7 @@ SH);
         sort($names);
         self::assertSame(['GITHUB_TOKEN', 'SSH_HOST', 'SSH_KNOWN_HOSTS', 'SSH_PORT', 'SSH_PRIVATE_KEY', 'SSH_USER'], $names);
         preg_match_all('/vars\.([A-Z_]+)/', $workflow, $matches);
-        self::assertSame(['APP_PATH', 'APP_URL'], $matches[1]);
+        self::assertSame(['ACTIONS_RUNNER', 'APP_PATH', 'APP_URL'], $matches[1]);
         self::assertStringContainsString('${{ github.actor }}', $workflow);
         self::assertStringContainsString('StrictHostKeyChecking=yes', $workflow);
         self::assertStringContainsString('ssh -p "$SSH_PORT"', $workflow);
@@ -280,6 +291,57 @@ SH);
         foreach (['{', '{}', '{"name":"app","services":{"php":{}}}'] as $json) {
             file_put_contents($input, $json);
             self::assertFalse($this->runCommand(['bash', $this->root().'/.github/scripts/render-runtime.sh', $input, $output])->isSuccessful());
+        }
+    }
+
+    public function testDeploymentSshCredentialsAreTemporaryAndAlwaysRemoved(): void
+    {
+        $workflow = Yaml::parseFile($this->root().'/.github/workflows/_deploy.yaml');
+        $steps = $workflow['jobs']['deploy']['steps'];
+        $configure = array_values(array_filter($steps, static fn (array $step): bool => ($step['name'] ?? '') === 'Configure SSH'))[0];
+        $cleanup = array_values(array_filter($steps, static fn (array $step): bool => ($step['name'] ?? '') === 'Remove temporary SSH credentials'))[0];
+        $environment = ['RUNNER_TEMP' => $this->temporary, 'GITHUB_ENV' => $this->temporary.'/job-env', 'SSH_PRIVATE_KEY' => 'test-key-not-a-real-secret', 'SSH_KNOWN_HOSTS' => 'test-host-entry'];
+        $configured = $this->runCommand(['bash', '-s'], $environment, $configure['run']);
+        self::assertTrue($configured->isSuccessful(), $configured->getErrorOutput());
+        $directory = trim(substr((string) file_get_contents($environment['GITHUB_ENV']), strlen('DEPLOY_SSH_DIR=')));
+        self::assertFileExists($directory.'/id_ed25519');
+        self::assertSame(0600, fileperms($directory.'/id_ed25519') & 0777);
+        self::assertSame('always()', $cleanup['if']);
+        self::assertTrue($this->runCommand(['bash', '-s'], $environment + ['DEPLOY_SSH_DIR' => $directory], $cleanup['run'])->isSuccessful());
+        self::assertDirectoryDoesNotExist($directory);
+    }
+
+    public function testGitFlowHasOneQuickPushPipelineAndFullReleaseValidation(): void
+    {
+        $ci = Yaml::parseFile($this->root().'/.github/workflows/ci.yaml');
+        self::assertArrayNotHasKey('pull_request', $ci['on']);
+        self::assertNotContains('main', $ci['on']['push']['branches']);
+        self::assertContains('develop', $ci['on']['push']['branches']);
+        self::assertContains('docs/**', $ci['on']['push']['paths-ignore']);
+        self::assertTrue($ci['concurrency']['cancel-in-progress']);
+        $quality = Yaml::parseFile($this->root().'/.github/workflows/_quality.yaml');
+        self::assertFalse($quality['on']['workflow_call']['inputs']['full']['default']);
+        self::assertArrayNotHasKey('production-image', $quality['jobs']);
+        if (isset($quality['jobs']['browser'])) {
+            self::assertSame('inputs.full', $quality['jobs']['browser']['if']);
+            self::assertSame('checks', $quality['jobs']['browser']['needs']);
+        }
+        $release = Yaml::parseFile($this->root().'/.github/workflows/release.yaml');
+        self::assertTrue($release['jobs']['quality']['with']['full']);
+    }
+
+    public function testEveryJobSupportsTheConfiguredRunnerAndHasABoundedTimeout(): void
+    {
+        foreach (glob($this->root().'/.github/workflows/*.yaml') as $file) {
+            foreach (Yaml::parseFile($file)['jobs'] as $job) {
+                if (!isset($job['runs-on'])) {
+                    continue;
+                }
+                self::assertStringContainsString('vars.ACTIONS_RUNNER', $job['runs-on'], $file);
+                self::assertStringContainsString('ubuntu-latest', $job['runs-on'], $file);
+                self::assertGreaterThan(0, $job['timeout-minutes'], $file);
+                self::assertLessThanOrEqual(30, $job['timeout-minutes'], $file);
+            }
         }
     }
 

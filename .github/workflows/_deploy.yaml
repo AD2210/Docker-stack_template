@@ -27,7 +27,8 @@ permissions:
 jobs:
   deploy:
     name: Deploy ${{ inputs.environment }}
-    runs-on: ubuntu-latest
+    runs-on: ${{ fromJSON(vars.ACTIONS_RUNNER || '"ubuntu-latest"') }}
+    timeout-minutes: 20
 
     # Production is called only by the separate manual promotion workflow.
     environment:
@@ -77,11 +78,12 @@ jobs:
           set -euo pipefail
           : "${SSH_PRIVATE_KEY:?Missing environment secret SSH_PRIVATE_KEY}"
           : "${SSH_KNOWN_HOSTS:?Missing environment secret SSH_KNOWN_HOSTS (not a variable)}"
-          install -d -m 700 "${HOME}/.ssh"
-          printf '%s\n' "${SSH_PRIVATE_KEY}" > "${HOME}/.ssh/id_ed25519"
-          chmod 600 "${HOME}/.ssh/id_ed25519"
-          printf '%s\n' "${SSH_KNOWN_HOSTS}" > "${HOME}/.ssh/known_hosts"
-          chmod 600 "${HOME}/.ssh/known_hosts"
+          DEPLOY_SSH_DIR="$(mktemp -d "${RUNNER_TEMP}/dsn-ssh.XXXXXX")"
+          printf 'DEPLOY_SSH_DIR=%s\n' "$DEPLOY_SSH_DIR" >> "$GITHUB_ENV"
+          printf '%s\n' "${SSH_PRIVATE_KEY}" > "${DEPLOY_SSH_DIR}/id_ed25519"
+          chmod 600 "${DEPLOY_SSH_DIR}/id_ed25519"
+          printf '%s\n' "${SSH_KNOWN_HOSTS}" > "${DEPLOY_SSH_DIR}/known_hosts"
+          chmod 600 "${DEPLOY_SSH_DIR}/known_hosts"
 
       - name: Prepare deployment bundle
         shell: bash
@@ -121,7 +123,7 @@ jobs:
           SSH_USER: ${{ secrets.SSH_USER }}
         run: |
           set -euo pipefail
-          scp -P "$SSH_PORT" -o StrictHostKeyChecking=yes "${RUNNER_TEMP}/deploy.tar.gz" \
+          scp -P "$SSH_PORT" -i "${DEPLOY_SSH_DIR}/id_ed25519" -o "UserKnownHostsFile=${DEPLOY_SSH_DIR}/known_hosts" -o StrictHostKeyChecking=yes "${RUNNER_TEMP}/deploy.tar.gz" \
             "${SSH_USER}@${SSH_HOST}:/tmp/${COMPOSE_PROJECT_NAME}-${{ inputs.tag }}.tar.gz"
 
       - name: Prepare and deploy on server
@@ -144,9 +146,17 @@ jobs:
               "${COMPOSE_ENVIRONMENT}" "${RELEASE_SERVICE}" "${RELEASE_IMAGE}" \
               "${RELEASE_TAG}" "${GHCR_USERNAME}" "${GHCR_TOKEN}" "${APP_URL}"
             cat .github/scripts/remote-deploy.sh
-          } | ssh -p "$SSH_PORT" -o StrictHostKeyChecking=yes "${SSH_USER}@${SSH_HOST}" 'bash -s'
+          } | ssh -p "$SSH_PORT" -i "${DEPLOY_SSH_DIR}/id_ed25519" -o "UserKnownHostsFile=${DEPLOY_SSH_DIR}/known_hosts" -o StrictHostKeyChecking=yes "${SSH_USER}@${SSH_HOST}" 'bash -s'
 
       - name: Remove local deployment bundle
         if: always()
         shell: bash
         run: rm -rf "${RUNNER_TEMP}/deploy" "${RUNNER_TEMP}/deploy.tar.gz"
+
+      - name: Remove temporary SSH credentials
+        if: always()
+        shell: bash
+        run: |
+          if [[ -n "${DEPLOY_SSH_DIR:-}" && "$DEPLOY_SSH_DIR" == "$RUNNER_TEMP"/dsn-ssh.* ]]; then
+            rm -rf -- "$DEPLOY_SSH_DIR"
+          fi

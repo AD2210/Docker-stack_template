@@ -14,7 +14,8 @@ concurrency:
 jobs:
   validate-promotion:
     if: vars.ENABLE_DEPLOYMENT == 'true' && github.ref_type == 'tag'
-    runs-on: ubuntu-latest
+    runs-on: ${{ fromJSON(vars.ACTIONS_RUNNER || '"ubuntu-latest"') }}
+    timeout-minutes: 5
     outputs:
       tag: ${{ steps.release.outputs.tag }}
       sha: ${{ steps.release.outputs.sha }}
@@ -52,7 +53,8 @@ jobs:
     name: Stop preproduction after promotion
     needs: [validate-promotion, deploy-production]
     if: vars.STOP_PREPROD_AFTER_PROMOTION == 'true'
-    runs-on: ubuntu-latest
+    runs-on: ${{ fromJSON(vars.ACTIONS_RUNNER || '"ubuntu-latest"') }}
+    timeout-minutes: 5
     environment: preprod
     permissions:
       contents: read
@@ -88,13 +90,22 @@ jobs:
           : "${SSH_PRIVATE_KEY:?Missing preprod secret SSH_PRIVATE_KEY}"
           : "${SSH_KNOWN_HOSTS:?Missing preprod secret SSH_KNOWN_HOSTS}"
           : "${APP_PATH:?Missing preprod variable APP_PATH}"
-          install -d -m 700 "${HOME}/.ssh"
-          printf '%s\n' "$SSH_PRIVATE_KEY" > "${HOME}/.ssh/id_ed25519"
-          chmod 600 "${HOME}/.ssh/id_ed25519"
-          printf '%s\n' "$SSH_KNOWN_HOSTS" > "${HOME}/.ssh/known_hosts"
-          chmod 600 "${HOME}/.ssh/known_hosts"
+          DEPLOY_SSH_DIR="$(mktemp -d "${RUNNER_TEMP}/dsn-ssh.XXXXXX")"
+          printf 'DEPLOY_SSH_DIR=%s\n' "$DEPLOY_SSH_DIR" >> "$GITHUB_ENV"
+          printf '%s\n' "${SSH_PRIVATE_KEY}" > "${DEPLOY_SSH_DIR}/id_ed25519"
+          chmod 600 "${DEPLOY_SSH_DIR}/id_ed25519"
+          printf '%s\n' "${SSH_KNOWN_HOSTS}" > "${DEPLOY_SSH_DIR}/known_hosts"
+          chmod 600 "${DEPLOY_SSH_DIR}/known_hosts"
           {
             printf 'export APP_PATH=%q COMPOSE_PROJECT_NAME=%q RELEASE_IMAGE=%q RELEASE_TAG=%q\n' \
               "$APP_PATH" "$COMPOSE_PROJECT_NAME" "$RELEASE_IMAGE" "$RELEASE_TAG"
             cat .github/scripts/stop-preprod.sh
-          } | ssh -p "$SSH_PORT" -o BatchMode=yes -o StrictHostKeyChecking=yes -o ConnectTimeout=10 "${SSH_USER}@${SSH_HOST}" 'bash -s'
+          } | ssh -p "$SSH_PORT" -i "${DEPLOY_SSH_DIR}/id_ed25519" -o "UserKnownHostsFile=${DEPLOY_SSH_DIR}/known_hosts" -o BatchMode=yes -o StrictHostKeyChecking=yes -o ConnectTimeout=10 "${SSH_USER}@${SSH_HOST}" 'bash -s'
+
+      - name: Remove temporary SSH credentials
+        if: always()
+        shell: bash
+        run: |
+          if [[ -n "${DEPLOY_SSH_DIR:-}" && "$DEPLOY_SSH_DIR" == "$RUNNER_TEMP"/dsn-ssh.* ]]; then
+            rm -rf -- "$DEPLOY_SSH_DIR"
+          fi

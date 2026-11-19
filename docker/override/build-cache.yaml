@@ -1,0 +1,8 @@
+# Build-only override. Cache references are distinct from immutable release tags.
+services:
+  php:
+    build:
+      cache_from:
+        - type=registry,ref=${BUILD_CACHE_REF:?Missing build cache reference}
+      cache_to:
+        - type=registry,ref=${BUILD_CACHE_REF:?Missing build cache reference},mode=max

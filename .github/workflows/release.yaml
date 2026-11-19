@@ -21,7 +21,8 @@ concurrency:
 jobs:
   validate-release:
     name: Validate release
-    runs-on: ubuntu-latest
+    runs-on: ${{ fromJSON(vars.ACTIONS_RUNNER || '"ubuntu-latest"') }}
+    timeout-minutes: 5
     outputs:
       tag: ${{ steps.release.outputs.tag }}
       sha: ${{ steps.release.outputs.sha }}
@@ -51,6 +52,7 @@ jobs:
     uses: ./.github/workflows/_quality.yaml
     with:
       sha: ${{ needs.validate-release.outputs.sha }}
+      full: true
 
   build-preprod:
     name: Build preprod
@@ -103,7 +105,8 @@ jobs:
     name: Record validated preproduction
     if: vars.ENABLE_DEPLOYMENT == 'true'
     needs: [validate-release, build-production, deploy-preprod]
-    runs-on: ubuntu-latest
+    runs-on: ${{ fromJSON(vars.ACTIONS_RUNNER || '"ubuntu-latest"') }}
+    timeout-minutes: 5
     steps:
       - name: Write validation receipt
         env:

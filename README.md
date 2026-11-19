@@ -119,3 +119,19 @@ La procédure détaillée et les variables GitHub attendues sont documentées da
 [.github/README.md](.github/README.md). Les notes de reprise manuelle sont dans
 [docs/manual-promotion.md](docs/manual-promotion.md) et
 [docs/updating.md](docs/updating.md).
+
+## Git Flow et coûts Actions
+
+La CI utilise les poussées Git Flow, sans dépendance aux PR. Les contrôles courants sont regroupés ; les validations complètes de release restent bloquantes. Le cache Docker GHCR et le runner VM optionnel sont décrits dans [le guide Actions](docs/actions-efficiency.md). Les tests navigateur sont à raccorder au profil `full` lorsque l’application en possède.
+
+## Choisir le runner GitHub Actions
+
+Tous les jobs de CI, construction, release et déploiement utilisent la variable de dépôt `ACTIONS_RUNNER`. Après avoir enregistré le runner sur le dépôt ou autorisé ce dépôt sur un runner d’organisation, créer cette variable dans **Settings → Secrets and variables → Actions → Variables** avec cette valeur JSON :
+
+```json
+["self-hosted", "linux", "x64", "dsn-ci"]
+```
+
+Le label `dsn-ci` doit être présent sur le runner. Sans cette variable, les workflows utilisent `ubuntu-latest`. Si le runner choisi est arrêté, les jobs restent en attente ; aucune bascule automatique vers un runner hébergé n’est déclenchée. La variable seule n’enregistre pas le runner et ne le partage pas entre les dépôts.
+
+Le [guide Actions et VM](docs/actions-efficiency.md) décrit l’installation, les caches et les limites de partage. Voir aussi la [reprise après un déploiement interrompu](docs/deployment-recovery.md).

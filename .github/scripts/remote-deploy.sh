@@ -24,12 +24,29 @@ CANDIDATE=''
 MANIFEST=''
 RESOLVED=''
 REGISTRY_CONFIG=''
+DEPLOYMENT_STARTED=false
 cleanup() {
+    status=$?
+    trap - EXIT
+    set +e
+    # Keep a private, operator-reviewed checkpoint after Docker resources may have changed.
+    # Recording a successful release here would hide a failed readiness check.
+    recovery_manifest="$MANIFEST"
+    if [[ -z "$recovery_manifest" ]]; then recovery_manifest="$APP_PATH/compose.runtime.yaml"; fi
+    if (( status != 0 )) && [[ "$DEPLOYMENT_STARTED" == true && -s "$recovery_manifest" && -s "$CANDIDATE" ]]; then
+        recovery_dir="$(mktemp -d "$APP_PATH/.deployment-recovery.${RELEASE_TAG}.XXXXXX")"
+        if [[ -n "$recovery_dir" ]] && cp "$recovery_manifest" "$recovery_dir/compose.runtime.yaml" && cp "$CANDIDATE" "$recovery_dir/release.env"; then
+            echo "Interrupted deployment: private recovery files retained in $recovery_dir; verify live resources before reconciliation." >&2
+        else
+            echo 'Unable to preserve deployment recovery files; inspect live resources before retrying.' >&2
+        fi
+    fi
     rm -f "$ARCHIVE"
     [[ -z "$REGISTRY_CONFIG" ]] || rm -rf "$REGISTRY_CONFIG"
     for temporary in "$CANDIDATE" "$MANIFEST" "$RESOLVED"; do
         [[ -z "$temporary" ]] || rm -f "$temporary"
     done
+    exit "$status"
 }
 trap cleanup EXIT
 # Renderer and Make must be provisioned before any runtime mutation.
@@ -70,6 +87,8 @@ bash "$APP_PATH/deploy/render-runtime.sh" "$RESOLVED" "$MANIFEST"
 compose() { COMPOSE_ARGUMENTS="$(printf '%q ' "$@")" make --no-print-directory -s deploy-compose; }
 compose config --quiet
 compose pull
+# Even a one-off Compose run can create persistent volumes and networks.
+DEPLOYMENT_STARTED=true
 # Validate effective secret visibility using the final image/user before stopping old services.
 compose run --rm --no-deps --entrypoint php --user 33 php -r 'foreach (["/run/secrets/postgres_password", "/app/config/secrets/".getenv("APP_ENV")."/".getenv("APP_ENV").".decrypt.private.php"] as $path) { if (!is_readable($path)) { fwrite(STDERR, "Required runtime secret is unreadable\n"); exit(1); } }'
 compose up --detach --wait database
