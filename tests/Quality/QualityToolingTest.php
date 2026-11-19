@@ -89,6 +89,17 @@ SH);
             self::assertNotSame(0, $process->getExitCode(), $process->getErrorOutput());
             self::assertStringNotContainsString('server-release record', (string) file_get_contents($this->temporary.'/calls'));
         }
+        $recoveries = glob($this->temporary.'/app/.deployment-recovery.V0.1.0.*');
+        self::assertCount(1, $recoveries);
+        self::assertSame(0700, fileperms($recoveries[0]) & 0777);
+        foreach (['compose.runtime.yaml', 'release.env'] as $file) {
+            self::assertFileExists($recoveries[0].'/'.$file);
+            self::assertSame(0600, fileperms($recoveries[0].'/'.$file) & 0777);
+        }
+        self::assertStringContainsString('PHP_SHA_CURRENT=V0.1.0', (string) file_get_contents($recoveries[0].'/release.env'));
+        self::assertStringNotContainsString('test-only', (string) file_get_contents($recoveries[0].'/release.env'));
+        self::assertStringContainsString('private recovery files retained', $process->getErrorOutput());
+        self::assertSame(9, $process->getExitCode());
         file_put_contents($this->temporary.'/calls', '');
         $process = $this->runCommand(['bash', $this->root().'/.github/scripts/remote-deploy.sh'], $env + ['FAIL_MATCH' => '--entrypoint php --user 33']);
         self::assertNotSame(0, $process->getExitCode(), $process->getErrorOutput());

@@ -123,3 +123,5 @@ La procédure détaillée et les variables GitHub attendues sont documentées da
 ## Git Flow et coûts Actions
 
 La CI utilise les poussées Git Flow, sans dépendance aux PR. Les contrôles courants sont regroupés ; les validations complètes de release restent bloquantes. Le cache Docker GHCR et le runner VM optionnel sont décrits dans [le guide Actions](docs/actions-efficiency.md). Les tests navigateur sont à raccorder au profil `full` lorsque l’application en possède.
+
+Voir aussi la [reprise après un déploiement interrompu](docs/deployment-recovery.md).
