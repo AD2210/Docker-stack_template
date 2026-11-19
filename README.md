@@ -119,3 +119,7 @@ La procédure détaillée et les variables GitHub attendues sont documentées da
 [.github/README.md](.github/README.md). Les notes de reprise manuelle sont dans
 [docs/manual-promotion.md](docs/manual-promotion.md) et
 [docs/updating.md](docs/updating.md).
+
+## Git Flow et coûts Actions
+
+La CI utilise les poussées Git Flow, sans dépendance aux PR. Les contrôles courants sont regroupés ; les validations complètes de release restent bloquantes. Le cache Docker GHCR et le runner VM optionnel sont décrits dans [le guide Actions](docs/actions-efficiency.md). Les tests navigateur sont à raccorder au profil `full` lorsque l’application en possède.
