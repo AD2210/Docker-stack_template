@@ -25,7 +25,7 @@ Les rapports navigateur sont conservés sept jours ; les petites preuves de prom
 
 ## Runner sur une VM du poste
 
-Profil initial proposé : Ubuntu Server 24.04 LTS, 4 vCPU, 8 Gio de RAM, disque de 80 Gio, réseau NAT et Docker à l’intérieur de la VM. Un seul agent, dédié au site pour commencer, évite les collisions de ports entre les services des jobs. La VM doit être allumée pour exécuter les tâches ; les jobs restent en attente lorsqu’elle est arrêtée.
+Profil initial proposé : Ubuntu Server 24.04 LTS, 4 vCPU, 8 Gio de RAM, disque de 120 Gio, réseau NAT et Docker à l’intérieur de la VM. Un seul agent, dédié au site pour commencer, évite les collisions de ports entre les services des jobs. La VM doit être allumée pour exécuter les tâches ; les jobs restent en attente lorsqu’elle est arrêtée.
 
 Le générateur prépare des fichiers cloud-init sans créer de VM ni installer d’agent sur le poste :
 
