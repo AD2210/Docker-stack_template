@@ -5,6 +5,7 @@ packages:
   - ca-certificates
   - curl
   - git
+  - gh
   - jq
   - make
   - python3
